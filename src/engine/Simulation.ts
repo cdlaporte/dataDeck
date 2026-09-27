@@ -38,12 +38,22 @@ export class Simulation {
   private transitionTicks = 0;
   /** Alpha held while targets are moving, so bubbles keep up with them. */
   private holdAlpha = 0;
+  /**
+   * Per-node "dead zone" radius: members of a group that share one target are
+   * not pulled while inside the group's packed radius, so the interior is not
+   * squeezed against collisions (the cause of jitter in dense clumps).
+   */
+  private dead: Float32Array = new Float32Array(0);
+  private deadDirty = true;
+  private collideIterations = 3;
 
   constructor() {
     this.sim = forceSimulation<SimNode>([])
       .stop()
       .force('target', (alpha: number) => this.targetForce(alpha))
-      .force('collide', () => this.collide.apply(this.nodes, this.collideR, this.collideStrength, 3))
+      .force('collide', () =>
+        this.collide.apply(this.nodes, this.collideR, this.collideStrength, this.collideIterations),
+      )
       .force('limit', () => this.limitSpeed());
     this.setMotion(this.motion);
   }
@@ -70,6 +80,8 @@ export class Simulation {
     this.toY = this.ty.slice();
     this.transitionTicks = 0;
     this.collideR = filled();
+    this.dead = filled();
+    this.deadDirty = true;
     this.sim.nodes(this.nodes);
   }
 
@@ -99,11 +111,44 @@ export class Simulation {
     }
     this.strengthX = strengthX;
     this.strengthY = strengthY;
+    this.deadDirty = true;
   }
 
   setCollision(radii: Float32Array, strength: number) {
     this.collideR = radii;
     this.collideStrength = strength;
+    this.deadDirty = true;
+  }
+
+  /** Adapts collision effort to how many bubbles are visible. */
+  setDensity(visibleCount: number) {
+    this.collideIterations = visibleCount < 1000 ? 2 : visibleCount < 3000 ? 3 : 4;
+  }
+
+  /** Groups nodes by identical final target and derives each group's packed radius. */
+  private updateDeadZones() {
+    this.deadDirty = false;
+    const { toX, toY, collideR, dead } = this;
+    const area = new Map<string, number>();
+    const keys: string[] = new Array(toX.length);
+    for (let i = 0; i < toX.length; i++) {
+      const r = collideR[i];
+      if (!(r > 0) || this.collideStrength <= 0) continue;
+      const key = `${Math.round(toX[i] * 4)},${Math.round(toY[i] * 4)}`;
+      keys[i] = key;
+      area.set(key, (area.get(key) ?? 0) + r * r);
+    }
+    for (let i = 0; i < toX.length; i++) {
+      const key = keys[i];
+      if (key === undefined) {
+        dead[i] = 0;
+        continue;
+      }
+      // Packed radius of the group (hexagonal packing ≈ 0.82), minus a margin
+      // so the outer ring is still gathered in.
+      const R = Math.sqrt(area.get(key)! / 0.82);
+      dead[i] = Math.max(0, R - 2.5 * collideR[i]);
+    }
   }
 
   /** Raises alpha to at least `alpha`, and holds it there while targets are moving. */
@@ -153,12 +198,25 @@ export class Simulation {
   }
 
   private targetForce(alpha: number) {
+    if (this.deadDirty) this.updateDeadZones();
     const sx = this.strengthX * alpha;
     const sy = this.strengthY * alpha;
-    const { tx, ty } = this;
+    const { tx, ty, dead } = this;
     for (const node of this.nodes) {
-      node.vx += (tx[node.index] - node.x) * sx;
-      node.vy += (ty[node.index] - node.y) * sy;
+      const i = node.index;
+      const dx = tx[i] - node.x;
+      const dy = ty[i] - node.y;
+      const dz = dead[i];
+      if (dz > 0) {
+        const d = Math.hypot(dx, dy);
+        if (d <= dz) continue;
+        const f = (d - dz) / d;
+        node.vx += dx * f * sx;
+        node.vy += dy * f * sy;
+      } else {
+        node.vx += dx * sx;
+        node.vy += dy * sy;
+      }
     }
   }
 

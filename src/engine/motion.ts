@@ -23,8 +23,8 @@ export const MOTION: Record<MotionPreset, MotionParams> = {
   calm: {
     transitionMs: 1600,
     velocityDecay: 0.55,
-    restAlpha: 0.02,
-    alphaDecay: 0.03,
+    restAlpha: 0.03,
+    alphaDecay: 0.02,
     maxSpeed: 5,
     cameraMs: 1400,
     tweenMs: 320,
@@ -32,8 +32,8 @@ export const MOTION: Record<MotionPreset, MotionParams> = {
   balanced: {
     transitionMs: 1000,
     velocityDecay: 0.45,
-    restAlpha: 0.03,
-    alphaDecay: 0.025,
+    restAlpha: 0.04,
+    alphaDecay: 0.015,
     maxSpeed: 9,
     cameraMs: 1000,
     tweenMs: 220,
@@ -41,8 +41,8 @@ export const MOTION: Record<MotionPreset, MotionParams> = {
   lively: {
     transitionMs: 650,
     velocityDecay: 0.35,
-    restAlpha: 0.05,
-    alphaDecay: 0.02,
+    restAlpha: 0.06,
+    alphaDecay: 0.012,
     maxSpeed: 15,
     cameraMs: 700,
     tweenMs: 150,
