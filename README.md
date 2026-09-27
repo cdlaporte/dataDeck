@@ -8,9 +8,18 @@ transitions. The bubbles fly from one slide's layout to the next.
 
 ## Quick start
 
+Requires **Node.js 22 LTS** (or 20.19+). Check with `node -v`. To upgrade:
+
+```bash
+nvm install && nvm use                                   # nvm reads .nvmrc (22)
+# or: brew install node@22 && brew link --overwrite node@22
+```
+
+Then:
+
 ```bash
 npm install
-npm run dev          # http://localhost:5173
+npm run dev          # or npm start → http://localhost:5173
 ```
 
 Pick one of the bundled samples, or drop in your own CSV/TSV:
