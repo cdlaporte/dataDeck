@@ -5,6 +5,8 @@ import { setEngine } from '../engine/instance';
 import { readThemeColors } from '../engine/palette';
 import {
   addAnnotation,
+  clearSelection,
+  setSelection,
   setCamera,
   setTsneCoords,
   setViewText,
@@ -12,6 +14,7 @@ import {
   useStore,
 } from '../state/store';
 import { AnnotationEditor } from './AnnotationEditor';
+import { SelectionBar } from './SelectionBar';
 import { Legend } from './Legend';
 import { PresentControls } from './PresentControls';
 import { StageToolbar } from './StageToolbar';
@@ -30,6 +33,7 @@ export function Stage() {
   const title = useStore((s) => s.view.title);
   const caption = useStore((s) => s.view.caption);
   const info = useStore((s) => s.layoutInfo);
+  const hasSelection = useStore((s) => s.selection.length > 0);
 
   useEffect(() => {
     const el = ref.current!;
@@ -46,7 +50,12 @@ export function Stage() {
           set({ tool: 'select' });
         } else if (s.editingAnnotationId) {
           set({ editingAnnotationId: null });
+        } else if (click.row === null) {
+          clearSelection();
         }
+      },
+      onSelect: (rows, additive) => {
+        if (useStore.getState().mode === 'edit') setSelection(rows, additive);
       },
       onCameraChange: (camera) => setCamera(camera),
       onLayoutInfo: (layoutInfo) => set({ layoutInfo }),
@@ -57,7 +66,8 @@ export function Stage() {
         if (useStore.getState().mode === 'edit') set({ editingAnnotationId: id });
       },
       onGroupClick: (field, value) => {
-        addAnnotation({ kind: 'group', field, value }, value);
+        const anchor = { kind: 'group' as const, field, value };
+        addAnnotation(anchor, value, '', engine.subjectRadius(anchor));
         set({ tool: 'select' });
       },
     });
@@ -65,12 +75,16 @@ export function Stage() {
     engine.setTheme(readThemeColors());
     const s = useStore.getState();
     engine.setTool(s.tool);
+    engine.setMotion(s.motion);
     engine.setTable(s.table, s.view);
+    engine.setSelection(s.selection);
 
     const unsubscribe = useStore.subscribe((next, prev) => {
       if (next.table !== prev.table) engine.setTable(next.table, next.view);
       else if (next.view !== prev.view) engine.setView(next.view, { animateCamera: true });
       if (next.tool !== prev.tool) engine.setTool(next.tool);
+      if (next.motion !== prev.motion) engine.setMotion(next.motion);
+      if (next.selection !== prev.selection || next.table !== prev.table) engine.setSelection(next.selection);
     });
     return () => {
       unsubscribe();
@@ -112,6 +126,10 @@ export function Stage() {
       {tool === 'annotate' && !presenting && (
         <div className="hint">Click a bubble, a group label or empty space to add a note · Esc to cancel</div>
       )}
+      {tool === 'lasso' && !presenting && !hasSelection && (
+        <div className="hint">Drag to draw around bubbles · Shift adds · Esc to finish</div>
+      )}
+      {!presenting && <SelectionBar />}
       {info && (
         <div className="stage-status" aria-live="polite">
           <span>

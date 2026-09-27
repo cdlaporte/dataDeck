@@ -1,5 +1,6 @@
 import { useState } from 'react';
 import { getEngine } from '../engine/instance';
+import { MOTION_LABEL, type MotionPreset } from '../engine/motion';
 import { isNumericType } from '../data/profile';
 import {
   dimensionFields,
@@ -123,6 +124,7 @@ export function ViewPanel() {
         </section>
 
         <AnnotationsSection />
+        <MotionSection />
       </div>
     </aside>
   );
@@ -327,7 +329,9 @@ function AnnotationsSection() {
                   ? 'On a bubble'
                   : a.anchor.kind === 'group'
                     ? `On group “${a.anchor.value}”`
-                    : 'Free'}
+                    : a.anchor.kind === 'rows'
+                      ? `On ${a.anchor.rows.length.toLocaleString()} selected rows`
+                      : 'Free'}
               </span>
             </button>
             <button
@@ -340,6 +344,34 @@ function AnnotationsSection() {
             </button>
           </div>
         ))}
+      </div>
+    </section>
+  );
+}
+
+function MotionSection() {
+  const motion = useStore((s) => s.motion);
+  return (
+    <section className="section">
+      <div className="section-head">
+        <span className="section-title">Motion</span>
+      </div>
+      <div className="segmented" role="group" aria-label="Motion">
+        {(Object.keys(MOTION_LABEL) as MotionPreset[]).map((m) => (
+          <button
+            key={m}
+            type="button"
+            aria-pressed={motion === m}
+            onClick={() => useStore.setState({ motion: m })}
+          >
+            {MOTION_LABEL[m]}
+          </button>
+        ))}
+      </div>
+      <div className="section-hint motion-hint">
+        {motion === 'calm' && 'Slow, gentle transitions. Bubbles come fully to rest.'}
+        {motion === 'balanced' && 'Smooth transitions that settle quickly.'}
+        {motion === 'lively' && 'Snappy transitions with a little life at rest.'}
       </div>
     </section>
   );

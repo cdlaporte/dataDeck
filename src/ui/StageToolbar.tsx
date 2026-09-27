@@ -1,7 +1,8 @@
 import { DEFAULT_CAMERA } from '../state/types';
 import { isViewDirty, setCamera, startPresentation, useStore } from '../state/store';
 import { snapshot, updateActiveSlide } from './actions';
-import { IconCamera, IconCursor, IconMaximize, IconNote, IconPlay, IconSave } from './icons';
+import { IconCamera, IconCursor, IconLasso, IconMaximize, IconNote, IconPlay, IconSave } from './icons';
+import type { Tool } from '../engine/Engine';
 
 export function StageToolbar() {
   const tool = useStore((s) => s.tool);
@@ -10,7 +11,7 @@ export function StageToolbar() {
   const camera = useStore((s) => s.view.camera);
   const zoomed =
     Math.abs(camera.k - 1) > 1e-3 || Math.abs(camera.cx - 0.5) > 1e-3 || Math.abs(camera.cy - 0.5) > 1e-3;
-  const setTool = (t: 'select' | 'annotate') => useStore.setState({ tool: t });
+  const setTool = (t: Tool) => useStore.setState({ tool: t });
 
   return (
     <div className="stage-toolbar" role="toolbar" aria-label="Stage tools">
@@ -33,6 +34,16 @@ export function StageToolbar() {
         onClick={() => setTool(tool === 'annotate' ? 'select' : 'annotate')}
       >
         <IconNote />
+      </button>
+      <button
+        type="button"
+        className="btn icon ghost"
+        aria-pressed={tool === 'lasso'}
+        title="Lasso select (L) — or Shift-drag anytime"
+        aria-label="Lasso select"
+        onClick={() => setTool(tool === 'lasso' ? 'select' : 'lasso')}
+      >
+        <IconLasso />
       </button>
       <button
         type="button"

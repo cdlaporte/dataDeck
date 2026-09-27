@@ -1,15 +1,22 @@
 import { get as idbGet, set as idbSet } from 'idb-keyval';
 import { loadDeck, toDeck, useStore, type ThemePref } from '../state/store';
 import type { Deck } from '../state/types';
+import type { MotionPreset } from '../engine/motion';
 
 const DECK_KEY = 'datadeck:current';
 const THEME_KEY = 'datadeck:theme';
+const MOTION_KEY = 'datadeck:motion';
 
 /** Restores the last deck from IndexedDB, then autosaves changes (debounced). */
 export async function initPersistence() {
   try {
-    const [deck, theme] = await Promise.all([idbGet<Deck>(DECK_KEY), idbGet<ThemePref>(THEME_KEY)]);
+    const [deck, theme, motion] = await Promise.all([
+      idbGet<Deck>(DECK_KEY),
+      idbGet<ThemePref>(THEME_KEY),
+      idbGet<MotionPreset>(MOTION_KEY),
+    ]);
     if (theme) useStore.setState({ theme });
+    if (motion) useStore.setState({ motion });
     if (deck?.dataset) loadDeck(deck);
   } catch (err) {
     console.warn('Could not restore saved deck', err);
@@ -19,6 +26,7 @@ export async function initPersistence() {
   let timer: ReturnType<typeof setTimeout> | null = null;
   useStore.subscribe((s, prev) => {
     if (s.theme !== prev.theme) void idbSet(THEME_KEY, s.theme).catch(() => {});
+    if (s.motion !== prev.motion) void idbSet(MOTION_KEY, s.motion).catch(() => {});
     const changed =
       s.dataset !== prev.dataset ||
       s.slides !== prev.slides ||

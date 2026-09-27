@@ -16,7 +16,7 @@ import {
 import type { FieldMeta, FieldType, Filter } from '../state/types';
 import { Slider, Sparkline, TypeBadge } from './controls';
 import { TYPE_GLYPH, TYPE_LABEL } from './fieldTypes';
-import { IconFilter, IconPalette, IconPanelLeft, IconPlus, IconX } from './icons';
+import { IconFilter, IconLasso, IconPalette, IconPanelLeft, IconPlus, IconX } from './icons';
 
 export function DataPanel() {
   const open = useStore((s) => s.leftOpen);
@@ -67,7 +67,11 @@ export function DataPanel() {
           </div>
           {filters.length === 0 && <div className="section-hint">No filters. All rows are shown.</div>}
           {filters.map((f) => (
-            <FilterCard key={f.id} filter={f} meta={table.fieldByName[f.field]} />
+            <FilterCard
+              key={f.id}
+              filter={f}
+              meta={f.kind === 'rows' ? undefined : table.fieldByName[f.field]}
+            />
           ))}
         </section>
       </div>
@@ -224,6 +228,28 @@ function AddFilter({ fields }: { fields: FieldMeta[] }) {
 }
 
 function FilterCard({ filter, meta }: { filter: Filter; meta: FieldMeta | undefined }) {
+  if (filter.kind === 'rows') {
+    const n = filter.rows.length.toLocaleString();
+    return (
+      <div className="filter-card">
+        <div className="filter-card-head">
+          <IconLasso size={15} />
+          <span>Selection</span>
+          <button
+            type="button"
+            className="btn icon small ghost"
+            aria-label="Remove selection filter"
+            onClick={() => removeFilter(filter.id)}
+          >
+            <IconX size={14} />
+          </button>
+        </div>
+        <div className="section-hint">
+          {filter.mode === 'include' ? `Showing only ${n} selected rows` : `${n} selected rows hidden`}
+        </div>
+      </div>
+    );
+  }
   if (!meta) return null;
   return (
     <div className="filter-card">

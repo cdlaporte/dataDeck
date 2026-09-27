@@ -24,6 +24,12 @@ export interface AnnotationPlacement {
   visible: boolean;
 }
 
+type NoteElement = SVGGElement & {
+  __drag?: { dx: number; dy: number };
+  __version?: string;
+  __size?: { w: number; h: number };
+};
+
 export interface OverlayCallbacks {
   onAnnotationMove(id: string, dx: number, dy: number, done: boolean): void;
   onAnnotationEdit(id: string): void;
@@ -64,13 +70,12 @@ export class Overlay {
   private guideLayer: Selection<SVGGElement, unknown, null, undefined>;
   private groupLayer: Selection<SVGGElement, unknown, null, undefined>;
   private annotationLayer: Selection<SVGGElement, unknown, null, undefined>;
+  private lassoPath: Selection<SVGPathElement, unknown, null, undefined>;
   private current: Selection<SVGGElement, unknown, null, undefined> | null = null;
   private axes: AxisGuide[] = [];
   private theme!: ThemeColors;
   private lastTransform = '';
   private groupField: string | null = null;
-  private annotationVersions = new Map<string, string>();
-  private noteSizes = new Map<string, { w: number; h: number }>();
   interactive = false;
 
   constructor(
@@ -81,14 +86,31 @@ export class Overlay {
     this.guideLayer = this.root.append('g').attr('class', 'guides');
     this.groupLayer = this.root.append('g').attr('class', 'group-labels');
     this.annotationLayer = this.root.append('g').attr('class', 'annotations');
+    this.lassoPath = this.root
+      .append('path')
+      .attr('class', 'lasso')
+      .attr('stroke-width', 1.5)
+      .attr('stroke-dasharray', '5 4')
+      .attr('stroke-linejoin', 'round')
+      .attr('fill-opacity', 0.08)
+      .attr('display', 'none');
+  }
+
+  /** Draws (or hides) the in-progress lasso, in screen coordinates. */
+  setLasso(points: [number, number][] | null) {
+    if (!points || points.length < 2) {
+      this.lassoPath.attr('display', 'none');
+      return;
+    }
+    this.lassoPath.attr('display', null).attr('d', `M${points.map((p) => p.join(',')).join('L')}Z`);
   }
 
   setTheme(theme: ThemeColors) {
     this.theme = theme;
+    this.lassoPath.attr('stroke', theme.accent).attr('fill', theme.accent);
     this.setAxes(this.axes, true);
     this.groupLayer.selectAll('*').remove();
     this.annotationLayer.selectAll('*').remove();
-    this.annotationVersions.clear();
   }
 
   setAxes(axes: AxisGuide[], force = false) {
@@ -267,16 +289,17 @@ export class Overlay {
         (exit) => exit.remove(),
       );
 
-    const versions = this.annotationVersions;
-    const sizes = this.noteSizes;
     sel.each(function (d) {
       const g = select(this);
       const a = d.annotation;
-      const drag = (g.node() as SVGGElement & { __drag?: { dx: number; dy: number } }).__drag;
+      // Render caches live on the element itself: a note that leaves and re-enters
+      // (slide changes, edit ↔ present) gets a fresh element and must rebuild its text.
+      const node = g.node() as NoteElement;
+      const drag = node.__drag;
       let dx = drag?.dx ?? a.dx;
       let dy = drag?.dy ?? a.dy;
       // Keep notes on screen: mirror the offset when the note would overflow and the other side fits.
-      const size = sizes.get(a.id);
+      const size = node.__size;
       if (!drag && size) {
         const M = 10;
         if (dx >= 0 ? d.x + dx + size.w > width - M : d.x + dx - size.w < M) {
@@ -294,8 +317,8 @@ export class Overlay {
       const side = `${dx >= 0 ? 'r' : 'l'}${dy >= 0 ? 'b' : 't'}`;
       const version = `${a.title}\u0000${a.text}\u0000${side}`;
       const text = g.select<SVGTextElement>('text.note-text');
-      if (versions.get(a.id) !== version) {
-        versions.set(a.id, version);
+      if (node.__version !== version) {
+        node.__version = version;
         text.selectAll('*').remove();
         const lines: { t: string; title: boolean }[] = [
           ...(a.title ? wrapText(a.title, titleFont, NOTE_WIDTH).map((t) => ({ t, title: true })) : []),
@@ -318,7 +341,7 @@ export class Overlay {
         });
         const textWidth = Math.max(40, ...lines.map((l) => measure(l.t, l.title ? titleFont : bodyFont)));
         const w = Math.min(NOTE_WIDTH, textWidth);
-        sizes.set(a.id, { w, h: total + 14 });
+        node.__size = { w, h: total + 14 };
         g.select('line.rule')
           .attr('x1', 0)
           .attr('x2', dx >= 0 ? w : -w)

@@ -835,6 +835,8 @@ button.type-badge:hover {
 .stage-overlay {
   pointer-events: none;
   overflow: visible;
+  /* Above the slide title (notes must never be covered), below legend and toolbars. */
+  z-index: 3;
 }
 
 .stage-overlay .annotation-note {
@@ -871,7 +873,7 @@ button.type-badge:hover {
   top: 22px;
   left: 28px;
   right: 280px;
-  z-index: 3;
+  z-index: 2;
   display: flex;
   flex-direction: column;
   gap: 2px;
@@ -1634,4 +1636,53 @@ button.type-badge:hover {
   .panel.right {
     width: 250px;
   }
+}
+
+/* ------------------------------------------------------------------ Selection */
+
+.selection-bar {
+  position: absolute;
+  top: 18px;
+  left: 50%;
+  transform: translateX(-50%);
+  z-index: 7;
+  display: flex;
+  align-items: center;
+  gap: 2px;
+  padding: 4px 4px 4px 12px;
+  border-radius: 999px;
+  background: var(--surface-2);
+  border: 1px solid var(--border);
+  box-shadow: var(--shadow-md);
+  white-space: nowrap;
+}
+
+.selection-bar .sep {
+  width: 1px;
+  height: 18px;
+  background: var(--border);
+  margin: 0 6px;
+}
+
+.selection-bar .btn {
+  border-radius: 999px;
+}
+
+.selection-count {
+  font-size: 12.5px;
+  color: var(--text-secondary);
+  font-variant-numeric: tabular-nums;
+}
+
+.selection-count strong {
+  color: var(--text-primary);
+}
+
+.stage.tool-lasso,
+.stage.tool-lasso.over-bubble {
+  cursor: crosshair;
+}
+
+.motion-hint {
+  margin-top: 8px;
 }

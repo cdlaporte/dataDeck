@@ -136,6 +136,13 @@ test('explore, annotate, snapshot, present and persist', async ({ page }) => {
   await expect(page.locator('.present-count')).toHaveText('1 / 4');
   await page.keyboard.press('ArrowRight');
   await expect(page.locator('.present-count')).toHaveText('2 / 4');
+  // Regression: a note that re-enters (slide 1 has none) must rebuild its text.
+  const note = page.locator('g.annotation text.note-text');
+  await expect(note).toContainText('Heaviest penguin');
+  await page.keyboard.press('ArrowLeft');
+  await expect(page.locator('g.annotation')).toHaveCount(0);
+  await page.keyboard.press('ArrowRight');
+  await expect(note).toContainText('Heaviest penguin');
   await expect(page.getByLabel('Slide title')).toHaveValue('Gentoos are heavier');
   expect((await state(page)).view.filters).toHaveLength(1);
   await page.keyboard.press('ArrowRight');
@@ -166,5 +173,98 @@ test('simulation CPU cost stays within a frame budget at 5,000 rows', async ({ p
   });
   console.log(`simulation tick @5k rows: ${ms.toFixed(2)} ms`);
   expect(ms).toBeLessThan(16);
+  expect(errors).toEqual([]);
+});
+
+/** Screen-space bounding polygon (with padding) around the visible rows matching `species`. */
+const clusterPolygon = (page: Page, species: string) =>
+  page.evaluate((sp) => {
+    const hooks = (window as unknown as Hooks).__datadeck;
+    const e = hooks.engine();
+    const table = hooks.store.getState().table;
+    const col = table.columns.species.values as (string | null)[];
+    const r = e.container.getBoundingClientRect();
+    let x0 = Infinity,
+      y0 = Infinity,
+      x1 = -Infinity,
+      y1 = -Infinity;
+    e.sim.nodes.forEach((n, i) => {
+      if (!e.visible[i] || col[i] !== sp) return;
+      const x = r.left + n.x * e.transform.k + e.transform.x;
+      const y = r.top + n.y * e.transform.k + e.transform.y;
+      x0 = Math.min(x0, x);
+      y0 = Math.min(y0, y);
+      x1 = Math.max(x1, x);
+      y1 = Math.max(y1, y);
+    });
+    const p = 14;
+    return [
+      [x0 - p, y0 - p],
+      [x1 + p, y0 - p],
+      [x1 + p, y1 + p],
+      [x0 - p, y1 + p],
+    ] as [number, number][];
+  }, species);
+
+async function drawLasso(page: Page, pts: [number, number][], shift = false) {
+  if (shift) await page.keyboard.down('Shift');
+  await page.mouse.move(pts[0][0], pts[0][1]);
+  await page.mouse.down();
+  for (const p of [...pts.slice(1), pts[0]]) await page.mouse.move(p[0], p[1], { steps: 6 });
+  await page.mouse.up();
+  if (shift) await page.keyboard.up('Shift');
+}
+
+test('lasso: drill in, exclude and annotate a selection', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByRole('button', { name: /Palmer penguins/ }).click();
+  await page.locator('.field-name', { hasText: 'species' }).click();
+  await settle(page, 500);
+
+  // Lasso tool → Keep only (drill in).
+  await page.keyboard.press('l');
+  await drawLasso(page, await clusterPolygon(page, 'Gentoo'));
+  await expect(page.locator('.selection-count')).toHaveText('124 selected');
+  await page
+    .getByRole('toolbar', { name: 'Selection actions' })
+    .getByRole('button', { name: 'Keep only' })
+    .click();
+  await expect(page.locator('.stage-status')).toContainText('Showing 124 of 344');
+  await expect(page.locator('.filter-card', { hasText: 'Selection' })).toContainText('Showing only 124');
+  await page.getByRole('button', { name: 'Remove selection filter' }).click();
+  await expect(page.locator('.stage-status')).toContainText('Showing 344 of 344');
+  await settle(page, 500);
+
+  // Shift-drag in the select tool → Exclude.
+  await page.keyboard.press('v');
+  await drawLasso(page, await clusterPolygon(page, 'Adelie'), true);
+  await expect(page.locator('.selection-count')).toHaveText('152 selected');
+  await page
+    .getByRole('toolbar', { name: 'Selection actions' })
+    .getByRole('button', { name: 'Exclude' })
+    .click();
+  await expect(page.locator('.stage-status')).toContainText('Showing 192 of 344');
+  await page.getByRole('button', { name: 'Remove selection filter' }).click();
+  await settle(page, 500);
+
+  // Annotate a selection: the note circles the selected group and follows it.
+  await page.keyboard.press('l');
+  await drawLasso(page, await clusterPolygon(page, 'Chinstrap'));
+  await page
+    .getByRole('toolbar', { name: 'Selection actions' })
+    .getByRole('button', { name: 'Annotate' })
+    .click();
+  await expect(page.getByLabel('Annotation title')).toHaveValue('68 selected');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('g.annotation text.note-text')).toContainText('68 selected');
+  await expect(page.locator('.selection-bar')).toHaveCount(0);
+
+  // Esc clears a selection.
+  await page.keyboard.press('l');
+  await drawLasso(page, await clusterPolygon(page, 'Gentoo'));
+  await expect(page.locator('.selection-bar')).toBeVisible();
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.selection-bar')).toHaveCount(0);
   expect(errors).toEqual([]);
 });

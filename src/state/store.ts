@@ -2,6 +2,7 @@ import { create } from 'zustand';
 import { makeId } from '../data/parse';
 import { buildTable, isNumericType } from '../data/profile';
 import type { LayoutInfo, Tool, TsneStatus } from '../engine/Engine';
+import type { MotionPreset } from '../engine/motion';
 import {
   DEFAULT_TSNE,
   defaultView,
@@ -36,6 +37,9 @@ export interface AppState {
   leftOpen: boolean;
   rightOpen: boolean;
   theme: ThemePref;
+  motion: MotionPreset;
+  /** Lasso selection (row indices). Transient: not part of the view or slides. */
+  selection: number[];
   layoutInfo: LayoutInfo | null;
   tsneStatus: TsneStatus;
   /** Restored from IndexedDB (or nothing to restore). */
@@ -58,6 +62,8 @@ const initial: AppState = {
   leftOpen: true,
   rightOpen: true,
   theme: 'system',
+  motion: 'balanced',
+  selection: [],
   layoutInfo: null,
   tsneStatus: { state: 'idle', iteration: 0, total: 0 },
   hydrated: false,
@@ -130,6 +136,7 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
   if (!ok(v.encoding.color)) v.encoding.color = null;
   if (v.encoding.size && table.fieldByName[v.encoding.size]?.type !== 'quantitative') v.encoding.size = null;
   v.filters = v.filters.filter((f) => {
+    if (f.kind === 'rows') return f.rows.every((r) => r < table.rowCount);
     const meta = table.fieldByName[f.field];
     if (!meta) return false;
     return f.kind === 'range'
@@ -141,7 +148,9 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
       ? a.anchor.row < table.rowCount
       : a.anchor.kind === 'group'
         ? !!table.fieldByName[a.anchor.field]
-        : true,
+        : a.anchor.kind === 'rows'
+          ? a.anchor.rows.every((r) => r < table.rowCount)
+          : true,
   );
   return v;
 }
@@ -167,6 +176,7 @@ export function loadDataset(
     deckName: opts.name ?? dataset.name,
     mode: 'edit',
     editingAnnotationId: null,
+    selection: [],
     error: null,
   });
 }
@@ -251,13 +261,23 @@ export function setViewText(patch: Partial<Pick<ViewState, 'title' | 'caption'>>
   updateView((v) => ({ ...v, ...patch }));
 }
 
-export function addAnnotation(anchor: Annotation['anchor'], title: string, text = ''): string {
+/**
+ * Adds a note. `subjectRadius` (screen px) is the size of the circle drawn around
+ * the anchor; the default offset places the note just outside it.
+ */
+export function addAnnotation(
+  anchor: Annotation['anchor'],
+  title: string,
+  text = '',
+  subjectRadius = 0,
+): string {
   const id = makeId();
   const { view } = get();
-  // Alternate default offsets so consecutive notes don't stack.
+  // Alternate default directions so consecutive notes don't stack.
   const k = view.annotations.length;
-  const dx = k % 2 === 0 ? 60 : -60;
-  const dy = k % 4 < 2 ? -50 : 50;
+  const reach = subjectRadius * Math.SQRT1_2;
+  const dx = (k % 2 === 0 ? 1 : -1) * (60 + reach);
+  const dy = (k % 4 < 2 ? -1 : 1) * (50 + reach);
   updateView((v) => ({ ...v, annotations: [...v.annotations, { id, anchor, dx, dy, title, text }] }));
   set({ editingAnnotationId: id });
   return id;
@@ -273,6 +293,41 @@ export function updateAnnotation(id: string, patch: Partial<Annotation>) {
 export function removeAnnotation(id: string) {
   updateView((v) => ({ ...v, annotations: v.annotations.filter((a) => a.id !== id) }));
   if (get().editingAnnotationId === id) set({ editingAnnotationId: null });
+}
+
+// ---------------------------------------------------------------------------
+// Lasso selection
+
+export function setSelection(rows: number[], additive = false) {
+  const next = additive ? [...new Set([...get().selection, ...rows])] : rows;
+  set({ selection: next.sort((a, b) => a - b) });
+}
+
+export function clearSelection() {
+  if (get().selection.length) set({ selection: [] });
+}
+
+/** Drill in: keep only the selected rows. */
+export function keepSelection() {
+  const rows = get().selection;
+  if (!rows.length) return;
+  upsertFilter({ id: makeId(), kind: 'rows', mode: 'include', rows });
+  set({ selection: [] });
+}
+
+/** Hide the selected rows. */
+export function excludeSelection() {
+  const rows = get().selection;
+  if (!rows.length) return;
+  upsertFilter({ id: makeId(), kind: 'rows', mode: 'exclude', rows });
+  set({ selection: [] });
+}
+
+export function annotateSelection(subjectRadius = 0) {
+  const rows = get().selection;
+  if (!rows.length) return;
+  addAnnotation({ kind: 'rows', rows }, `${rows.length.toLocaleString()} selected`, '', subjectRadius);
+  set({ selection: [], tool: 'select' });
 }
 
 // ---------------------------------------------------------------------------
@@ -361,6 +416,7 @@ export function startPresentation(index?: number) {
     presentIndex: i,
     view: sanitizeView(slides[i].view, table),
     editingAnnotationId: null,
+    selection: [],
     tool: 'select',
   });
 }

@@ -106,6 +106,18 @@ describe('buildTable', () => {
     expect([...vis]).toEqual([1, 0, 0, 0]);
     expect(countVisible(vis)).toBe(1);
   });
+
+  it('applies lasso row filters (include = drill in, exclude = hide)', () => {
+    const keep = computeVisibility(table, [{ id: 'r', kind: 'rows', mode: 'include', rows: [1, 3] }]);
+    expect([...keep]).toEqual([0, 1, 0, 1]);
+    const hide = computeVisibility(table, [{ id: 'r', kind: 'rows', mode: 'exclude', rows: [1, 3] }]);
+    expect([...hide]).toEqual([1, 0, 1, 0]);
+    const combined = computeVisibility(table, [
+      { id: 'r', kind: 'rows', mode: 'include', rows: [0, 1, 2] },
+      { id: 'c', kind: 'categorical', field: 'species', exclude: ['x'] },
+    ]);
+    expect([...combined]).toEqual([0, 1, 0, 0]);
+  });
 });
 
 describe('bundled samples', () => {

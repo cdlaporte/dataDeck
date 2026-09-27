@@ -5,6 +5,16 @@ export function computeVisibility(table: DataTable, filters: Filter[]): Uint8Arr
   const n = table.rowCount;
   const visible = new Uint8Array(n).fill(1);
   for (const f of filters) {
+    if (f.kind === 'rows') {
+      if (f.mode === 'include') {
+        const keep = new Uint8Array(n);
+        for (const r of f.rows) if (r >= 0 && r < n) keep[r] = 1;
+        for (let i = 0; i < n; i++) visible[i] &= keep[i];
+      } else {
+        for (const r of f.rows) if (r >= 0 && r < n) visible[r] = 0;
+      }
+      continue;
+    }
     const col = table.columns[f.field];
     if (!col) continue;
     if (f.kind === 'categorical' && col.kind === 'string') {

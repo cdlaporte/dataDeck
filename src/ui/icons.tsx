@@ -191,6 +191,17 @@ export const IconNote = (p: IconProps) => (
   </Icon>
 );
 
+export const IconLasso = (p: IconProps) => (
+  <Icon {...p}>
+    <path
+      d="M7 16.5C4.6 15.3 3 13.3 3 11c0-4 4-7 9-7s9 3 9 7-4 7-9 7c-1 0-2-.1-2.9-.3"
+      strokeDasharray="3 2.4"
+    />
+    <circle cx="7.5" cy="18" r="2" />
+    <path d="M7.5 20v2" />
+  </Icon>
+);
+
 export const IconFilter = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 5h16l-6 7v6l-4 2v-8z" />

@@ -3,7 +3,7 @@ import { select } from 'd3-selection';
 import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import { computeVisibility } from '../data/filters';
 import { Overlay, type AnnotationPlacement, type GroupLabel } from '../overlay/Overlay';
-import type { CameraState, DataTable, LayoutSpec, ViewState } from '../state/types';
+import type { AnnotationAnchor, CameraState, DataTable, LayoutSpec, ViewState } from '../state/types';
 import { baseRadius, computeColors, computeSizes, type ColorLegend, type SizeLegend } from './encodings';
 import { computeLayout, type LayoutResult } from './layouts';
 import { plotRect } from './layouts/common';
@@ -11,9 +11,11 @@ import type { ThemeColors } from './palette';
 import { Renderer, type Transform } from './Renderer';
 import { Simulation } from './Simulation';
 import { buildTsneInput } from './tsne';
+import { pointInPolygon } from './lasso';
+import { MOTION, TickClock, easeInOutCubic, type MotionParams, type MotionPreset } from './motion';
 import type { TsneRequest, TsneResponse } from './tsne.worker';
 
-export type Tool = 'select' | 'annotate';
+export type Tool = 'select' | 'annotate' | 'lasso';
 
 export interface LayoutInfo {
   message?: string;
@@ -57,10 +59,15 @@ export interface EngineCallbacks {
   onAnnotationMove?(id: string, dx: number, dy: number): void;
   onAnnotationEdit?(id: string): void;
   onGroupClick?(field: string, value: string): void;
+  /** Lasso finished: rows inside it (additive = Shift held, add to the selection). */
+  onSelect?(rows: number[], additive: boolean): void;
 }
 
-const CAMERA_TWEEN_MS = 900;
-const easeInOut = (t: number) => (t < 0.5 ? 4 * t * t * t : 1 - (-2 * t + 2) ** 3 / 2);
+/** Opacity of unselected bubbles while a selection exists. */
+const DIMMED_ALPHA = 0.2;
+/** Reheat strength for a view change, and for incremental t-SNE progress. */
+const REHEAT_VIEW = 0.6;
+const REHEAT_TSNE = 0.3;
 
 /**
  * Framework-free orchestrator: owns the WebGL renderer, the persistent force
@@ -79,9 +86,13 @@ export class Engine {
   private width = 1;
   private height = 1;
   private transform: Transform = { k: 1, x: 0, y: 0 };
-  private cameraTween: { from: CameraState; to: CameraState; start: number } | null = null;
+  private cameraTween: { from: CameraState; to: CameraState; start: number; ms: number } | null = null;
   private suppressCameraEvents = false;
   private suppressClick = false;
+  private motion: MotionParams = MOTION.balanced;
+  private clock = new TickClock();
+  private lastFrame = -1;
+  private lasso: { points: [number, number][]; additive: boolean } | null = null;
 
   private table: DataTable | null = null;
   private view: ViewState | null = null;
@@ -97,6 +108,9 @@ export class Engine {
   private displayRGBA = new Float32Array(0);
   private hovered = -1;
   private animating = true;
+  /** Base opacity per row from the last recompute, before selection dimming. */
+  private baseAlpha = new Float32Array(0);
+  private selected: Uint8Array | null = null;
 
   private tree: Quadtree<number> | null = null;
   private treeFrame = -1;
@@ -142,9 +156,11 @@ export class Engine {
         const target = e.target as Element | null;
         if (target?.closest?.('.annotation-note')) return false;
         const me = e as MouseEvent;
-        // Pressing on a bubble drags the bubble instead of panning.
-        if ((e.type === 'mousedown' || e.type === 'touchstart') && this.tool === 'select' && this.dragHit(e))
-          return false;
+        if (e.type === 'mousedown' || e.type === 'touchstart') {
+          // Lasso tool / Shift-drag draw a selection; pressing a bubble drags it. Neither pans.
+          if (this.tool === 'lasso' || me.shiftKey) return false;
+          if (this.tool === 'select' && this.dragHit(e)) return false;
+        }
         return (!me.ctrlKey || e.type === 'wheel') && !me.button;
       })
       .on('zoom', (e: D3ZoomEvent<HTMLElement, unknown>) => {
@@ -181,6 +197,24 @@ export class Engine {
     this.tool = tool;
     this.overlay.interactive = tool === 'annotate';
     this.container.classList.toggle('tool-annotate', tool === 'annotate');
+    this.container.classList.toggle('tool-lasso', tool === 'lasso');
+  }
+
+  setMotion(preset: MotionPreset) {
+    this.motion = MOTION[preset] ?? MOTION.balanced;
+    this.sim.setMotion(this.motion);
+  }
+
+  /** Highlights the given rows (others are dimmed); an empty list clears the selection. */
+  setSelection(rows: readonly number[]) {
+    const n = this.table?.rowCount ?? 0;
+    if (!rows.length || !n) {
+      this.selected = null;
+    } else {
+      this.selected = new Uint8Array(n);
+      for (const r of rows) if (r >= 0 && r < n) this.selected[r] = 1;
+    }
+    this.applyAlphaTargets();
   }
 
   /** Sets the data (and optionally the view that goes with it, applied atomically). */
@@ -202,6 +236,8 @@ export class Engine {
       this.displayR = new Float32Array(n);
       this.targetRGBA = new Float32Array(n * 4);
       this.displayRGBA = new Float32Array(n * 4);
+      this.baseAlpha = new Float32Array(n);
+      this.selected = null;
       this.hovered = -1;
       this.recompute(true);
       this.displayRGBA.set(this.targetRGBA);
@@ -224,7 +260,13 @@ export class Engine {
       Math.abs(c.cy - current.cy) > 1e-4 ||
       Math.abs(c.k - current.k) > 1e-4
     ) {
-      if (opts.animateCamera) this.cameraTween = { from: current, to: { ...c }, start: performance.now() };
+      if (opts.animateCamera)
+        this.cameraTween = {
+          from: current,
+          to: { ...c },
+          start: performance.now(),
+          ms: this.motion.cameraMs,
+        };
       else this.applyCamera(c);
     }
   }
@@ -302,6 +344,7 @@ export class Engine {
   /** Fast-forwards the simulation and all tweens (used by tests and screenshots). */
   settle(ticks = 300) {
     for (let i = 0; i < ticks; i++) this.sim.tick();
+    this.clock = new TickClock();
     this.displayR.set(this.targetR);
     this.displayRGBA.set(this.targetRGBA);
     this.cameraTween = null;
@@ -325,7 +368,11 @@ export class Engine {
   // ---------------------------------------------------------------------------
   // Layout
 
-  private recompute(reheat: boolean) {
+  /**
+   * Recomputes layout targets, sizes and colours from the current view.
+   * `transitionMs` overrides how long targets glide (t-SNE progress uses a short one).
+   */
+  private recompute(reheat: boolean, transitionMs?: number) {
     const table = this.table;
     const view = this.view;
     if (!table || !view || !this.theme) return;
@@ -359,6 +406,8 @@ export class Engine {
     this.maxR = 1;
     const collideR = new Float32Array(n);
     const pad = layout.collide < 1 ? 0 : 0.8;
+    // Slightly soft collisions settle without jitter while still packing cleanly.
+    const collide = layout.collide >= 1 ? 0.85 : layout.collide;
     for (let i = 0; i < n; i++) {
       const vis = filterMask[i] && layout.valid[i] ? 1 : 0;
       this.visible[i] = vis;
@@ -370,9 +419,9 @@ export class Engine {
     }
 
     // Hidden rows with no target keep their spot; new rows appear where they belong.
-    this.sim.setTargets(layout.tx, layout.ty, layout.strengthX, layout.strengthY);
-    this.sim.setCollision(collideR, layout.collide);
-    if (reheat) this.sim.reheat(view.layout.mode === 'tsne' ? 0.5 : 0.9);
+    this.sim.setTargets(layout.tx, layout.ty, layout.strengthX, layout.strengthY, transitionMs);
+    this.sim.setCollision(collideR, collide);
+    if (reheat) this.sim.reheat(transitionMs !== undefined ? REHEAT_TSNE : REHEAT_VIEW);
 
     const colors = computeColors(table, view.encoding, this.theme.name);
     const alpha = layout.collide < 0.5 ? 0.85 : 1;
@@ -380,9 +429,9 @@ export class Engine {
       this.targetRGBA[i * 4] = colors.rgb[i * 3];
       this.targetRGBA[i * 4 + 1] = colors.rgb[i * 3 + 1];
       this.targetRGBA[i * 4 + 2] = colors.rgb[i * 3 + 2];
-      this.targetRGBA[i * 4 + 3] = this.visible[i] ? alpha : 0;
+      this.baseAlpha[i] = this.visible[i] ? alpha : 0;
     }
-    this.animating = true;
+    this.applyAlphaTargets();
 
     this.overlay.setAxes([layout.xAxis, layout.yAxis].filter((a) => !!a));
     this.callbacks.onLayoutInfo?.({
@@ -393,6 +442,15 @@ export class Engine {
       sizeLegend,
       baseRadiusPx: base * layout.radiusScale,
     });
+  }
+
+  private applyAlphaTargets() {
+    const sel = this.selected;
+    for (let i = 0; i < this.baseAlpha.length; i++) {
+      const a = this.baseAlpha[i];
+      this.targetRGBA[i * 4 + 3] = sel && !sel[i] ? Math.min(a, DIMMED_ALPHA) : a;
+    }
+    this.animating = true;
   }
 
   // ---------------------------------------------------------------------------
@@ -494,7 +552,8 @@ export class Engine {
         iteration: msg.iteration,
         total: msg.total,
       });
-      this.recompute(true);
+      // Short glides between progress updates keep the embedding flowing smoothly.
+      this.recompute(true, 250);
       if (msg.done) this.callbacks.onTsneDone?.(normaliseCoords(coords));
     };
     return worker;
@@ -540,8 +599,8 @@ export class Engine {
   private stepCamera(now: number) {
     const tw = this.cameraTween;
     if (!tw) return;
-    const p = Math.min(1, (now - tw.start) / CAMERA_TWEEN_MS);
-    const e = easeInOut(p);
+    const p = Math.min(1, (now - tw.start) / tw.ms);
+    const e = easeInOutCubic(p);
     // Interpolate zoom geometrically so scale changes feel even.
     const k = tw.from.k * (tw.to.k / tw.from.k) ** e;
     this.applyCamera({
@@ -606,8 +665,13 @@ export class Engine {
 
   /** Drag a bubble: it is pinned under the pointer while the live simulation flows around it. */
   private handlePointerDown = (e: PointerEvent) => {
-    if (e.button !== 0 || this.tool !== 'select') return;
+    if (e.button !== 0) return;
     if ((e.target as Element).closest('.annotation-note, .group')) return;
+    if (this.tool === 'lasso' || (this.tool === 'select' && e.shiftKey)) {
+      this.startLasso(e);
+      return;
+    }
+    if (this.tool !== 'select') return;
     const hit = this.pick(e.clientX, e.clientY);
     if (hit < 0) return;
     const node = this.sim.nodes[hit];
@@ -639,8 +703,58 @@ export class Engine {
     this.container.addEventListener('pointercancel', up);
   };
 
+  /** Freehand lasso: collect screen points, then select visible bubbles inside the polygon. */
+  private startLasso(e: PointerEvent) {
+    const origin = this.container.getBoundingClientRect();
+    const local = (ev: PointerEvent): [number, number] => [ev.clientX - origin.left, ev.clientY - origin.top];
+    this.lasso = { points: [local(e)], additive: e.shiftKey };
+    this.container.setPointerCapture(e.pointerId);
+    this.callbacks.onHover?.(null);
+    const move = (ev: PointerEvent) => {
+      const lasso = this.lasso;
+      if (!lasso) return;
+      const p = local(ev);
+      const last = lasso.points[lasso.points.length - 1];
+      if (Math.hypot(p[0] - last[0], p[1] - last[1]) >= 3) lasso.points.push(p);
+      this.overlay.setLasso(lasso.points);
+    };
+    const up = () => {
+      this.container.removeEventListener('pointermove', move);
+      this.container.removeEventListener('pointerup', up);
+      this.container.removeEventListener('pointercancel', up);
+      const lasso = this.lasso;
+      this.lasso = null;
+      this.overlay.setLasso(null);
+      if (!lasso) return;
+      this.suppressClick = true;
+      const pts = lasso.points;
+      let area = 0;
+      for (let i = 0; i < pts.length; i++) {
+        const [x0, y0] = pts[i];
+        const [x1, y1] = pts[(i + 1) % pts.length];
+        area += x0 * y1 - x1 * y0;
+      }
+      // A click (or a scribble with no area) clears the selection.
+      if (pts.length < 3 || Math.abs(area) / 2 < 16) {
+        if (!lasso.additive) this.callbacks.onSelect?.([], false);
+        return;
+      }
+      const t = this.transform;
+      const nodes = this.sim.nodes;
+      const rows: number[] = [];
+      for (let i = 0; i < nodes.length; i++) {
+        if (!this.visible[i]) continue;
+        if (pointInPolygon(nodes[i].x * t.k + t.x, nodes[i].y * t.k + t.y, pts)) rows.push(i);
+      }
+      this.callbacks.onSelect?.(rows, lasso.additive);
+    };
+    this.container.addEventListener('pointermove', move);
+    this.container.addEventListener('pointerup', up);
+    this.container.addEventListener('pointercancel', up);
+  }
+
   private handlePointerMove = (e: PointerEvent) => {
-    if (e.buttons) return;
+    if (e.buttons || this.lasso) return;
     const hit = this.pick(e.clientX, e.clientY);
     if (hit !== this.hovered) this.hovered = hit;
     this.container.classList.toggle('over-bubble', hit >= 0);
@@ -678,27 +792,33 @@ export class Engine {
     const t0 = performance.now();
     this.frameCount++;
     this.stepCamera(now);
-    this.sim.tick();
-    this.tween();
+    // Fixed 60 Hz simulation steps: identical motion on 60 Hz and 120 Hz displays.
+    const ticks = this.clock.advance(now);
+    for (let i = 0; i < ticks; i++) this.sim.tick();
+    const dt = this.lastFrame < 0 ? 16 : Math.min(100, now - this.lastFrame);
+    this.lastFrame = now;
+    this.tween(dt);
     this.render();
     this.frameTime = this.frameTime * 0.9 + (performance.now() - t0) * 0.1;
   };
 
-  private tween() {
+  /** Time-based exponential easing of radii and colours toward their targets. */
+  private tween(dt: number) {
     if (!this.animating) return;
     let moving = false;
+    const k = 1 - Math.exp(-dt / this.motion.tweenMs);
     const n = this.targetR.length;
     for (let i = 0; i < n; i++) {
       const dr = this.targetR[i] - this.displayR[i];
       if (Math.abs(dr) > 0.01) {
-        this.displayR[i] += dr * 0.14;
+        this.displayR[i] += dr * k;
         moving = true;
       } else this.displayR[i] = this.targetR[i];
     }
     for (let i = 0; i < n * 4; i++) {
       const dc = this.targetRGBA[i] - this.displayRGBA[i];
       if (Math.abs(dc) > 0.002) {
-        this.displayRGBA[i] += dc * 0.12;
+        this.displayRGBA[i] += dc * k;
         moving = true;
       } else this.displayRGBA[i] = this.targetRGBA[i];
     }
@@ -753,54 +873,74 @@ export class Engine {
     return out;
   }
 
+  /** Centroid and enclosing radius (world units) of the visible bubbles among `rows`. */
+  private enclosingCircle(rows: Iterable<number>): { x: number; y: number; r: number } | null {
+    const nodes = this.sim.nodes;
+    let sx = 0;
+    let sy = 0;
+    let c = 0;
+    for (const i of rows) {
+      if (!this.visible[i]) continue;
+      sx += nodes[i].x;
+      sy += nodes[i].y;
+      c++;
+    }
+    if (!c) return null;
+    const x = sx / c;
+    const y = sy / c;
+    let r = 0;
+    for (const i of rows) {
+      if (!this.visible[i]) continue;
+      r = Math.max(r, Math.hypot(nodes[i].x - x, nodes[i].y - y) + this.displayR[i]);
+    }
+    return { x, y, r };
+  }
+
   private placeAnnotations(): AnnotationPlacement[] {
-    const view = this.view;
+    if (!this.view) return [];
+    return this.view.annotations.map((a) => ({ annotation: a, ...this.placeAnchor(a.anchor) }));
+  }
+
+  /** Screen position and subject radius of an annotation anchor. */
+  private placeAnchor(anchor: AnnotationAnchor): Omit<AnnotationPlacement, 'annotation'> {
+    const hidden = { x: 0, y: 0, r: 0, visible: false };
     const table = this.table;
-    if (!view || !table) return [];
+    if (!table) return hidden;
     const t = this.transform;
     const nodes = this.sim.nodes;
-    return view.annotations.map((a) => {
-      const anchor = a.anchor;
-      if (anchor.kind === 'point') {
-        const node = nodes[anchor.row];
-        const ok = !!node && !!this.visible[anchor.row];
-        return {
-          annotation: a,
-          x: node ? node.x * t.k + t.x : 0,
-          y: node ? node.y * t.k + t.y : 0,
-          r: ok ? this.displayR[anchor.row] * t.k + 4 : 0,
-          visible: ok,
-        };
-      }
-      if (anchor.kind === 'group') {
+    if (anchor.kind === 'point') {
+      const node = nodes[anchor.row];
+      if (!node) return hidden;
+      const ok = !!this.visible[anchor.row];
+      return {
+        x: node.x * t.k + t.x,
+        y: node.y * t.k + t.y,
+        r: ok ? this.displayR[anchor.row] * t.k + 4 : 0,
+        visible: ok,
+      };
+    }
+    if (anchor.kind === 'group' || anchor.kind === 'rows') {
+      let rows: Iterable<number>;
+      if (anchor.kind === 'rows') rows = anchor.rows;
+      else {
         const col = table.columns[anchor.field];
-        let sx = 0,
-          sy = 0,
-          c = 0;
-        if (col?.kind === 'string') {
-          for (let i = 0; i < nodes.length; i++) {
-            if (!this.visible[i] || (col.values[i] ?? '') !== anchor.value) continue;
-            sx += nodes[i].x;
-            sy += nodes[i].y;
-            c++;
-          }
-        }
-        if (!c) return { annotation: a, x: 0, y: 0, r: 0, visible: false };
-        const cx = sx / c;
-        const cy = sy / c;
-        let rad = 0;
-        if (col?.kind === 'string') {
-          for (let i = 0; i < nodes.length; i++) {
-            if (!this.visible[i] || (col.values[i] ?? '') !== anchor.value) continue;
-            rad = Math.max(rad, Math.hypot(nodes[i].x - cx, nodes[i].y - cy) + this.displayR[i]);
-          }
-        }
-        return { annotation: a, x: cx * t.k + t.x, y: cy * t.k + t.y, r: rad * t.k + 6, visible: true };
+        const list: number[] = [];
+        if (col?.kind === 'string')
+          for (let i = 0; i < nodes.length; i++) if ((col.values[i] ?? '') === anchor.value) list.push(i);
+        rows = list;
       }
-      const wx = anchor.x * this.width;
-      const wy = anchor.y * this.height;
-      return { annotation: a, x: wx * t.k + t.x, y: wy * t.k + t.y, r: 3, visible: true };
-    });
+      const circle = this.enclosingCircle(rows);
+      if (!circle) return hidden;
+      return { x: circle.x * t.k + t.x, y: circle.y * t.k + t.y, r: circle.r * t.k + 6, visible: true };
+    }
+    const wx = anchor.x * this.width;
+    const wy = anchor.y * this.height;
+    return { x: wx * t.k + t.x, y: wy * t.k + t.y, r: 3, visible: true };
+  }
+
+  /** On-screen radius of an anchor's subject circle (used to place new notes outside it). */
+  subjectRadius(anchor: AnnotationAnchor): number {
+    return this.placeAnchor(anchor).r;
   }
 }
 

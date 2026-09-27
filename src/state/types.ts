@@ -87,11 +87,15 @@ export interface Encoding {
 
 export type Filter =
   | { id: string; kind: 'categorical'; field: string; exclude: string[] }
-  | { id: string; kind: 'range'; field: string; min: number; max: number };
+  | { id: string; kind: 'range'; field: string; min: number; max: number }
+  /** Lasso selections: keep only (`include`, drill in) or hide (`exclude`) specific rows. */
+  | { id: string; kind: 'rows'; mode: 'include' | 'exclude'; rows: number[] };
 
 export type AnnotationAnchor =
   | { kind: 'point'; row: number }
   | { kind: 'group'; field: string; value: string }
+  /** A lasso selection: the note circles whichever of these rows are visible. */
+  | { kind: 'rows'; rows: number[] }
   /** Free anchors are stored in normalised viewport coords so they survive resizes. */
   | { kind: 'free'; x: number; y: number };
 
