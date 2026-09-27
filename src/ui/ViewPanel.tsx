@@ -401,7 +401,9 @@ function AnnotationsSection() {
                     ? `On group “${a.anchor.value}”`
                     : a.anchor.kind === 'rows'
                       ? `On ${a.anchor.rows.length.toLocaleString()} selected rows`
-                      : 'Free'}
+                      : a.style === 'text'
+                        ? 'Text box'
+                        : 'Free'}
               </span>
             </button>
             <button

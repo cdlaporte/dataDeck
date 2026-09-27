@@ -10,6 +10,7 @@ import {
   IconPlay,
   IconSave,
   IconSearch,
+  IconText,
 } from './icons';
 import type { Tool } from '../engine/Engine';
 
@@ -43,6 +44,16 @@ export function StageToolbar() {
         onClick={() => setTool(tool === 'annotate' ? 'select' : 'annotate')}
       >
         <IconNote />
+      </button>
+      <button
+        type="button"
+        className="btn icon ghost"
+        aria-pressed={tool === 'text'}
+        title="Text box (T)"
+        aria-label="Text box"
+        onClick={() => setTool(tool === 'text' ? 'select' : 'text')}
+      >
+        <IconText />
       </button>
       <button
         type="button"

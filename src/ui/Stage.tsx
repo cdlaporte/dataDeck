@@ -46,7 +46,14 @@ export function Stage() {
       onClick: (click) => {
         const s = useStore.getState();
         if (s.mode !== 'edit' || !s.table) return;
-        if (s.tool === 'annotate') {
+        if (s.tool === 'text') {
+          addAnnotation({ kind: 'free', x: click.nx, y: click.ny }, 'Text', '', 0, {
+            style: 'text',
+            dx: 0,
+            dy: 0,
+          });
+          set({ tool: 'select' });
+        } else if (s.tool === 'annotate') {
           if (click.row !== null)
             addAnnotation({ kind: 'point', row: click.row }, rowLabel(s.table, click.row));
           else addAnnotation({ kind: 'free', x: click.nx, y: click.ny }, 'Note');
@@ -128,6 +135,9 @@ export function Stage() {
       <TsneProgress />
       {tool === 'annotate' && !presenting && (
         <div className="hint">Click a bubble, a group label or empty space to add a note · Esc to cancel</div>
+      )}
+      {tool === 'text' && !presenting && (
+        <div className="hint">Click anywhere to place a text box · Esc to cancel</div>
       )}
       {tool === 'lasso' && !presenting && !hasSelection && (
         <div className="hint">Drag to draw around bubbles · Shift adds · Esc to finish</div>

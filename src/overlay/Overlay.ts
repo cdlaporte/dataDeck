@@ -6,6 +6,8 @@ import type { ThemeColors } from '../engine/palette';
 
 const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
 const NOTE_WIDTH = 200;
+/** Default note body size (px); titles are 1px larger. */
+export const DEFAULT_NOTE_SIZE = 14;
 
 export interface GroupLabel {
   key: string;
@@ -261,8 +263,6 @@ export class Overlay {
 
   private updateAnnotations(placements: AnnotationPlacement[], width: number, height: number) {
     const th = this.theme;
-    const titleFont = `600 13px ${FONT}`;
-    const bodyFont = `12px ${FONT}`;
     const sel = this.annotationLayer
       .selectAll<SVGGElement, AnnotationPlacement>('g.annotation')
       .data(placements, (d) => d.annotation.id)
@@ -301,9 +301,10 @@ export class Overlay {
       const drag = node.__drag;
       let dx = drag?.dx ?? a.dx;
       let dy = drag?.dy ?? a.dy;
-      // Keep notes on screen: mirror the offset when the note would overflow and the other side fits.
+      // Plain text boxes sit exactly where they were put; callouts keep clear of edges and the legend.
+      const isText = a.style === 'text';
       const size = node.__size;
-      if (!drag && size) {
+      if (!drag && size && !isText) {
         // Keep notes on screen and clear of the legend: try the offset as set,
         // then mirrored horizontally, vertically, and both.
         const M = 10;
@@ -326,45 +327,53 @@ export class Overlay {
       }
       g.style('opacity', d.visible ? '1' : '0');
 
-      // Rebuild the text only when content or side changes.
-      const side = `${dx >= 0 ? 'r' : 'l'}${dy >= 0 ? 'b' : 't'}`;
-      const version = `${a.title}\u0000${a.text}\u0000${side}`;
+      // Rebuild the text only when content, size, style or side changes.
+      const bodySize = a.fontSize ?? DEFAULT_NOTE_SIZE;
+      const titleSize = bodySize + 1;
+      const side = isText ? 'text' : `${dx >= 0 ? 'r' : 'l'}${dy >= 0 ? 'b' : 't'}`;
+      const version = `${a.title}\u0000${a.text}\u0000${side}\u0000${bodySize}`;
       const text = g.select<SVGTextElement>('text.note-text');
       if (node.__version !== version) {
         node.__version = version;
         text.selectAll('*').remove();
+        const titleFont = `600 ${titleSize}px ${FONT}`;
+        const bodyFont = `${bodySize}px ${FONT}`;
+        // Wrap width grows with the font so big text doesn't become a narrow column.
+        const maxW = Math.min(520, (NOTE_WIDTH * bodySize) / 13);
         const lines: { t: string; title: boolean }[] = [
-          ...(a.title ? wrapText(a.title, titleFont, NOTE_WIDTH).map((t) => ({ t, title: true })) : []),
-          ...(a.text ? wrapText(a.text, bodyFont, NOTE_WIDTH).map((t) => ({ t, title: false })) : []),
+          ...(a.title ? wrapText(a.title, titleFont, maxW).map((t) => ({ t, title: true })) : []),
+          ...(a.text ? wrapText(a.text, bodyFont, maxW).map((t) => ({ t, title: false })) : []),
         ];
-        const anchor = dx >= 0 ? 'start' : 'end';
-        const lineH = 16;
+        const anchor = isText || dx >= 0 ? 'start' : 'end';
+        const lineH = Math.round(bodySize * 1.35);
         const total = lines.length * lineH;
-        const y0 = dy >= 0 ? 16 : -6 - total + 12;
+        // Text boxes hang below their origin; callouts sit below/above the rule.
+        const y0 = isText ? titleSize : dy >= 0 ? lineH + 2 : -6 - total + lineH - 4;
         lines.forEach((l, i) => {
           text
             .append('tspan')
             .attr('x', 0)
             .attr('y', y0 + i * lineH)
             .attr('text-anchor', anchor)
-            .attr('font-size', l.title ? 13 : 12)
+            .attr('font-size', l.title ? titleSize : bodySize)
             .attr('font-weight', l.title ? 600 : 400)
             .attr('fill', l.title ? th.textPrimary : th.textSecondary)
             .text(l.t || ' ');
         });
         const textWidth = Math.max(40, ...lines.map((l) => measure(l.t, l.title ? titleFont : bodyFont)));
-        const w = Math.min(NOTE_WIDTH, textWidth);
+        const w = Math.min(maxW, textWidth);
         node.__size = { w, h: total + 14 };
         g.select('line.rule')
           .attr('x1', 0)
           .attr('x2', dx >= 0 ? w : -w)
           .attr('y1', 0)
-          .attr('y2', 0);
+          .attr('y2', 0)
+          .attr('display', isText ? 'none' : null);
         g.select('rect.hit')
-          .attr('x', dx >= 0 ? -4 : -w - 4)
-          .attr('y', dy >= 0 ? -6 : -total - 8)
-          .attr('width', w + 8)
-          .attr('height', total + 14);
+          .attr('x', isText ? -6 : dx >= 0 ? -4 : -w - 4)
+          .attr('y', isText ? -4 : dy >= 0 ? -6 : -total - 8)
+          .attr('width', w + (isText ? 12 : 8))
+          .attr('height', total + (isText ? 10 : 14));
       }
 
       const nx = d.x + dx;
@@ -376,12 +385,14 @@ export class Overlay {
         .attr('cx', d.x)
         .attr('cy', d.y)
         .attr('r', Math.max(0, r))
+        .attr('display', isText ? 'none' : null)
         .attr('opacity', r > 0 ? 1 : 0);
       g.select('line.connector')
         .attr('x1', d.x + (dx / dist) * r)
         .attr('y1', d.y + (dy / dist) * r)
         .attr('x2', nx)
         .attr('y2', ny)
+        .attr('display', isText ? 'none' : null)
         .attr('opacity', dist > r + 4 ? 1 : 0);
     });
   }

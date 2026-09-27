@@ -1,6 +1,15 @@
 import { useEffect, useRef } from 'react';
 import { getEngine } from '../engine/instance';
 import { CATEGORICAL, readThemeColors } from '../engine/palette';
+import { DEFAULT_NOTE_SIZE } from '../overlay/Overlay';
+
+const FONT_SIZES: [string, number][] = [
+  ['S', 12],
+  ['M', 14],
+  ['L', 18],
+  ['XL', 24],
+  ['2XL', 32],
+];
 import { removeAnnotation, updateAnnotation, useStore } from '../state/store';
 import { IconTrash } from './icons';
 
@@ -54,6 +63,43 @@ export function AnnotationEditor() {
         aria-label="Annotation text"
         onChange={(e) => updateAnnotation(id, { text: e.target.value })}
       />
+      <div className="editor-row">
+        <span className="label">Size</span>
+        <div className="segmented mini" role="group" aria-label="Font size">
+          {FONT_SIZES.map(([label, px]) => (
+            <button
+              key={label}
+              type="button"
+              aria-pressed={(annotation.fontSize ?? DEFAULT_NOTE_SIZE) === px}
+              title={`${px}px`}
+              onClick={() => updateAnnotation(id, { fontSize: px })}
+            >
+              {label}
+            </button>
+          ))}
+        </div>
+      </div>
+      {annotation.anchor.kind === 'free' && (
+        <div className="editor-row">
+          <span className="label">Style</span>
+          <div className="segmented mini" role="group" aria-label="Note style">
+            <button
+              type="button"
+              aria-pressed={annotation.style !== 'text'}
+              onClick={() => updateAnnotation(id, { style: 'callout', dx: 60, dy: -50 })}
+            >
+              Callout
+            </button>
+            <button
+              type="button"
+              aria-pressed={annotation.style === 'text'}
+              onClick={() => updateAnnotation(id, { style: 'text', dx: 0, dy: 0 })}
+            >
+              Text box
+            </button>
+          </div>
+        </div>
+      )}
       {annotation.anchor.kind !== 'free' && (
         <>
           <label className="switch-row" style={{ marginTop: 2 }}>

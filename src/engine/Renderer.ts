@@ -177,5 +177,7 @@ export class Renderer {
     this.geometry.dispose();
     this.material.dispose();
     this.renderer.dispose();
+    // Free the GL context right away (offscreen thumbnail engines come and go).
+    this.renderer.forceContextLoss();
   }
 }

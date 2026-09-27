@@ -291,7 +291,9 @@ test('drag a field onto an axis, overlap, log scale, undo/redo', async ({ page }
     .poll(async () => (await state(page)).view.layout)
     .toMatchObject({ mode: '2d', x: 'body_mass_g', y: 'flipper_length_mm' });
   await settle(page);
-  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText('body_mass_g');
+  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText(
+    'body_mass_g',
+  );
 
   // Collisions off.
   await page.getByRole('switch', { name: /overlap/i }).check();
@@ -300,7 +302,9 @@ test('drag a field onto an axis, overlap, log scale, undo/redo', async ({ page }
   // Log scale on the x axis.
   await page.getByRole('button', { name: 'Log scale for X axis' }).click();
   await settle(page);
-  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText('body_mass_g (log)');
+  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText(
+    'body_mass_g (log)',
+  );
 
   // Undo / redo (keyboard); the edits above were separate steps.
   await page.locator('.stage').click({ position: { x: 5, y: 5 } });
@@ -364,5 +368,60 @@ test('find a row, highlight an annotated selection, export a PDF', async ({ page
   const bytes = readFileSync(path!);
   expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
   expect(bytes.length).toBeGreaterThan(10_000);
+  expect(errors).toEqual([]);
+});
+
+test('text boxes, note font size, theme-correct previews, compact strip', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.evaluate(() => (window as unknown as Hooks).__datadeck.store.setState({ theme: 'light' }));
+  await page.getByRole('button', { name: /Palmer penguins/ }).click();
+  await page.locator('.field-name', { hasText: 'species' }).click();
+  await settle(page);
+
+  // A plain text box: no subject circle, connector or rule.
+  const stage = (await page.locator('.stage').boundingBox())!;
+  await page.keyboard.press('t');
+  await page.mouse.click(stage.x + 140, stage.y + stage.height - 180);
+  await page.getByLabel('Annotation title').fill('Just text');
+  await page
+    .getByRole('group', { name: 'Font size' })
+    .getByRole('button', { name: 'XL', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Done' }).click();
+  const note = page.locator('g.annotation').first();
+  await expect(note.locator('text.note-text tspan').first()).toHaveAttribute('font-size', '25');
+  await expect(note.locator('circle.subject')).toHaveAttribute('display', 'none');
+  await expect(note.locator('line.rule')).toHaveAttribute('display', 'none');
+  expect((await state(page)).view.annotations[0]).toMatchObject({ style: 'text', fontSize: 24 });
+
+  // Two slides, then switch theme: previews are redrawn in the new theme.
+  await page.keyboard.press('s');
+  await page.keyboard.press('1');
+  await page.keyboard.press('s');
+  await expect(page.locator('.slide-thumb')).toHaveCount(2);
+  const before = (await state(page)).slides.map((s: { thumbnail: string; thumbnailTheme: string }) => [
+    s.thumbnailTheme,
+    s.thumbnail,
+  ]);
+  expect(before.map((b: string[]) => b[0])).toEqual(['light', 'light']);
+  await page.evaluate(() => (window as unknown as Hooks).__datadeck.store.setState({ theme: 'dark' }));
+  await expect
+    .poll(async () => (await state(page)).slides.map((s: { thumbnailTheme: string }) => s.thumbnailTheme), {
+      timeout: 30_000,
+    })
+    .toEqual(['dark', 'dark']);
+  const after = (await state(page)).slides.map((s: { thumbnail: string }) => s.thumbnail);
+  expect(after[0]).not.toBe(before[0][1]);
+
+  // Compact strip: numbered chips, selectable, remembered across reloads.
+  await page.getByRole('button', { name: 'Compact slide strip' }).click();
+  await expect(page.locator('.slide-chip')).toHaveCount(2);
+  await expect(page.locator('.slide-chip b')).toHaveText(['1', '2']);
+  await page.locator('.slide-chip .chip').first().click();
+  expect((await state(page)).activeSlideId).toBe((await state(page)).slides[0].id);
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(page.locator('.slide-chip')).toHaveCount(2);
   expect(errors).toEqual([]);
 });

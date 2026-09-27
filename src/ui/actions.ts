@@ -1,4 +1,5 @@
 import { getEngine } from '../engine/instance';
+import { readThemeColors } from '../engine/palette';
 import { ParseError, parseDelimited } from '../data/parse';
 import { downloadDeck, parseDeck } from '../persist/deckFile';
 import {
@@ -28,7 +29,7 @@ export async function snapshot() {
   const view = captureView();
   const thumb = (await getEngine()?.captureThumbnail(view.title)) ?? null;
   useStore.setState({ view });
-  addSlide(view, thumb);
+  addSlide(view, thumb, readThemeColors().name);
 }
 
 export async function updateActiveSlide() {
@@ -37,7 +38,7 @@ export async function updateActiveSlide() {
   const view = captureView();
   const thumb = (await getEngine()?.captureThumbnail(view.title)) ?? null;
   useStore.setState({ view });
-  updateSlide(activeSlideId, view, thumb);
+  updateSlide(activeSlideId, view, thumb, readThemeColors().name);
 }
 
 /** Toggles a category in the categorical filter for `field` (used by legend clicks). */

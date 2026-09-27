@@ -78,3 +78,21 @@ describe('motion', () => {
     expect(sim.nodes[0].x).toBeGreaterThan(950);
   });
 });
+
+describe('jumpToTargets', () => {
+  it('places bubbles on their targets and a short relaxation packs them', () => {
+    const n = 300;
+    const sim = new Simulation();
+    sim.setMotion(MOTION.balanced);
+    sim.setCount(n, 0, 0, 3);
+    const tx = new Float32Array(n).map((_, i) => (i % 3) * 300);
+    sim.setTargets(tx, new Float32Array(n), 0.1, 0.1);
+    sim.setCollision(new Float32Array(n).fill(5), 0.85);
+    sim.jumpToTargets();
+    expect(sim.transitioning).toBe(false);
+    for (let t = 0; t < 150; t++) sim.tick();
+    // Every bubble sits within its group's packed radius.
+    const R = Math.sqrt((100 * 25) / 0.82);
+    for (const d of sim.nodes) expect(Math.hypot(d.x - tx[d.index], d.y)).toBeLessThan(1.3 * R);
+  });
+});

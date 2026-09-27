@@ -200,6 +200,32 @@ export class Simulation {
     this.sim.tick();
   }
 
+  /**
+   * Skips the glide: finishes the target transition and places each bubble on
+   * its target, spiralling group members (bubbles sharing a target) outward so
+   * collisions only need a short relaxation.
+   */
+  jumpToTargets() {
+    this.tx.set(this.toX);
+    this.ty.set(this.toY);
+    this.transitionTick = this.transitionTicks;
+    const placed = new Map<string, number>();
+    for (const node of this.nodes) {
+      const i = node.index;
+      const key = `${Math.round(this.toX[i] * 4)},${Math.round(this.toY[i] * 4)}`;
+      const k = placed.get(key) ?? 0;
+      placed.set(key, k + 1);
+      const r = Math.max(1, this.collideR[i]);
+      const dist = r * 1.9 * Math.sqrt(k);
+      const angle = k * Math.PI * (3 - Math.sqrt(5));
+      node.x = this.toX[i] + dist * Math.cos(angle);
+      node.y = this.toY[i] + dist * Math.sin(angle);
+      node.vx = 0;
+      node.vy = 0;
+    }
+    this.sim.alpha(this.holdAlpha || 0.6);
+  }
+
   /** Whether the arrival hold is still active (for tests). */
   get holding() {
     return this.transitioning || this.arriving;

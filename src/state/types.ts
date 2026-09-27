@@ -107,6 +107,10 @@ export interface Annotation {
   dy: number;
   title: string;
   text: string;
+  /** 'callout' (default): circle, connector and rule. 'text': just a text box. */
+  style?: 'callout' | 'text';
+  /** Body font size in px (titles are 1px larger). Default 14. */
+  fontSize?: number;
   /** Colour only the annotated bubbles and grey out the rest. */
   highlight?: boolean;
   /** Paint highlighted bubbles one colour (null/undefined = keep their encoded colours). */
@@ -137,6 +141,8 @@ export interface Slide {
   id: string;
   view: ViewState;
   thumbnail: string | null;
+  /** Theme the thumbnail was drawn in (redrawn when the app theme changes). */
+  thumbnailTheme?: 'light' | 'dark';
 }
 
 export interface Deck {

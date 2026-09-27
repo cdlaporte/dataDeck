@@ -127,6 +127,12 @@ export const IconChevronDown = (p: IconProps) => (
   </Icon>
 );
 
+export const IconChevronUp = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m6 15 6-6 6 6" />
+  </Icon>
+);
+
 export const IconX = (p: IconProps) => (
   <Icon {...p}>
     <path d="M18 6 6 18M6 6l12 12" />
@@ -199,6 +205,12 @@ export const IconLasso = (p: IconProps) => (
     />
     <circle cx="7.5" cy="18" r="2" />
     <path d="M7.5 20v2" />
+  </Icon>
+);
+
+export const IconText = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M5 6V4h14v2M12 4v16M9 20h6" />
   </Icon>
 );
 

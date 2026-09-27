@@ -64,6 +64,8 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
    - Press **A**, or use the note tool, then click a bubble, a group label or empty space.
    - Notes are anchored to a data point, a category group or a canvas position, so they follow the data as it moves.
    - Drag a note to reposition it; double-click it to edit.
+   - Press **T** (or use the text tool) to place a plain **text box** anywhere, with no dot or line.
+   - Each note has its own **font size**: S, M, L, XL or 2XL.
    - **Highlight these points** in the note editor keeps the annotated bubbles in colour (or a colour you pick) and greys out everything else. This also appears in presentations and exports.
 4. **Select with a lasso.**
    - Press **L** (or use the lasso tool), or hold **Shift** and drag in the normal tool, to draw around bubbles. Shift adds to the selection.
@@ -73,6 +75,7 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
      - **Annotate** the selection with a note that circles the selected bubbles wherever they move
    - Selections survive layout changes, so you can select in a scatter and see where those points land in t-SNE. Esc clears the selection.
 5. **Snapshot** (**S**) saves the current view as a slide. Click a slide to load it back into the editor. If you change a loaded slide, **Update slide** (**U**) saves the changes. Drag slides to reorder them.
+   The chevron in the slide strip switches to a **compact strip** of numbered chips; hover a chip to see its preview. Previews are redrawn automatically when you switch between light and dark themes.
 6. **Present** (**P**) goes fullscreen. Use ←/→ (or space) to move between slides and Esc to exit.
 
 You can also:
@@ -101,6 +104,7 @@ Decks autosave to IndexedDB. **Export** offers three formats:
 | `P`           | Present from the selected slide         |
 | `A` / `V`     | Annotate tool / select tool             |
 | `L`           | Lasso tool (or Shift-drag anytime)      |
+| `T`           | Text box tool                           |
 | `⌘/Ctrl+F`    | Find a data point                       |
 | `⌘/Ctrl+Z`    | Undo (add Shift to redo)                |
 | `Esc`         | Clear selection, back to select tool    |

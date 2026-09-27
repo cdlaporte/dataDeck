@@ -46,6 +46,10 @@ export interface AppState {
   findOpen: boolean;
   canUndo: boolean;
   canRedo: boolean;
+  /** Slide strip shows numbered chips instead of previews. */
+  stripCompact: boolean;
+  /** Previews are being redrawn (e.g. after a theme change). */
+  refreshingThumbnails: boolean;
   /** Export progress, e.g. "Rendering slide 2 / 5" (null when idle). */
   exporting: string | null;
   layoutInfo: LayoutInfo | null;
@@ -77,6 +81,8 @@ const initial: AppState = {
   canUndo: false,
   canRedo: false,
   exporting: null,
+  stripCompact: false,
+  refreshingThumbnails: false,
   layoutInfo: null,
   tsneStatus: { state: 'idle', iteration: 0, total: 0 },
   hydrated: false,
@@ -318,6 +324,7 @@ export function addAnnotation(
   title: string,
   text = '',
   subjectRadius = 0,
+  extra: Partial<Annotation> = {},
 ): string {
   const id = makeId();
   const { view } = get();
@@ -326,7 +333,10 @@ export function addAnnotation(
   const reach = subjectRadius * Math.SQRT1_2;
   const dx = (k % 2 === 0 ? 1 : -1) * (60 + reach);
   const dy = (k % 4 < 2 ? -1 : 1) * (50 + reach);
-  updateView((v) => ({ ...v, annotations: [...v.annotations, { id, anchor, dx, dy, title, text }] }));
+  updateView((v) => ({
+    ...v,
+    annotations: [...v.annotations, { id, anchor, dx, dy, title, text, ...extra }],
+  }));
   set({ editingAnnotationId: id });
   return id;
 }
@@ -381,9 +391,13 @@ export function annotateSelection(subjectRadius = 0) {
 // ---------------------------------------------------------------------------
 // Slides
 
-export function addSlide(view: ViewState, thumbnail: string | null): Slide {
+export function addSlide(
+  view: ViewState,
+  thumbnail: string | null,
+  thumbnailTheme?: 'light' | 'dark',
+): Slide {
   const { slides, activeSlideId } = get();
-  const slide: Slide = { id: makeId(), view: clone(view), thumbnail };
+  const slide: Slide = { id: makeId(), view: clone(view), thumbnail, thumbnailTheme };
   const at = activeSlideId ? slides.findIndex((s) => s.id === activeSlideId) + 1 : slides.length;
   const next = [...slides];
   next.splice(at, 0, slide);
@@ -391,12 +405,31 @@ export function addSlide(view: ViewState, thumbnail: string | null): Slide {
   return slide;
 }
 
-export function updateSlide(id: string, view: ViewState, thumbnail: string | null) {
+export function updateSlide(
+  id: string,
+  view: ViewState,
+  thumbnail: string | null,
+  thumbnailTheme?: 'light' | 'dark',
+) {
   set({
     slides: get().slides.map((s) =>
-      s.id === id ? { ...s, view: clone(view), thumbnail: thumbnail ?? s.thumbnail } : s,
+      s.id === id
+        ? {
+            ...s,
+            view: clone(view),
+            thumbnail: thumbnail ?? s.thumbnail,
+            thumbnailTheme: thumbnail ? thumbnailTheme : s.thumbnailTheme,
+          }
+        : s,
     ),
   });
+}
+
+/** Replaces a slide's preview image (not an undoable edit). */
+export function setSlideThumbnail(id: string, thumbnail: string, thumbnailTheme: 'light' | 'dark') {
+  withoutHistory(() =>
+    set({ slides: get().slides.map((s) => (s.id === id ? { ...s, thumbnail, thumbnailTheme } : s)) }),
+  );
 }
 
 export function selectSlide(id: string) {

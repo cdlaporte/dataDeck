@@ -26,7 +26,7 @@ import { pointInPolygon } from './lasso';
 import { MOTION, TickClock, easeInOutCubic, type MotionParams, type MotionPreset } from './motion';
 import type { TsneRequest, TsneResponse } from './tsne.worker';
 
-export type Tool = 'select' | 'annotate' | 'lasso';
+export type Tool = 'select' | 'annotate' | 'lasso' | 'text';
 
 export interface LayoutInfo {
   message?: string;
@@ -151,6 +151,8 @@ export class Engine {
   constructor(
     readonly container: HTMLElement,
     private callbacks: EngineCallbacks = {},
+    /** Headless engines (offscreen thumbnail rendering) run no animation loop. */
+    private options: { headless?: boolean } = {},
   ) {
     this.canvas = document.createElement('canvas');
     this.canvas.className = 'stage-canvas';
@@ -198,7 +200,7 @@ export class Engine {
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
     this.resize();
-    this.raf = requestAnimationFrame(this.frame);
+    if (!this.options.headless) this.raf = requestAnimationFrame(this.frame);
   }
 
   // ---------------------------------------------------------------------------
@@ -216,6 +218,7 @@ export class Engine {
     this.overlay.interactive = tool === 'annotate';
     this.container.classList.toggle('tool-annotate', tool === 'annotate');
     this.container.classList.toggle('tool-lasso', tool === 'lasso');
+    this.container.classList.toggle('tool-text', tool === 'text');
   }
 
   setMotion(preset: MotionPreset) {
@@ -387,6 +390,13 @@ export class Engine {
   async captureThumbnail(title = '', width = 480): Promise<string | null> {
     const canvas = await this.captureImage({ scale: width / this.width, title });
     return canvas ? canvas.toDataURL('image/jpeg', 0.82) : null;
+  }
+
+  /** Puts every bubble straight onto its target (offscreen rendering), skipping the glide. */
+  jumpToTargets() {
+    this.sim.jumpToTargets();
+    this.displayR.set(this.targetR);
+    this.displayRGBA.set(this.targetRGBA);
   }
 
   /** Fast-forwards the simulation and all tweens (used by tests and screenshots). */

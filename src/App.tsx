@@ -72,6 +72,7 @@ function useShortcuts() {
       else if (key === 'a') useStore.setState({ tool: s.tool === 'annotate' ? 'select' : 'annotate' });
       else if (key === 'v') useStore.setState({ tool: 'select' });
       else if (key === 'l') useStore.setState({ tool: s.tool === 'lasso' ? 'select' : 'lasso' });
+      else if (key === 't') useStore.setState({ tool: s.tool === 'text' ? 'select' : 'text' });
       else if (key === '0') setCamera({ ...DEFAULT_CAMERA });
       else if (MODE_KEYS[key]) setLayoutMode(MODE_KEYS[key]);
       else if (e.key === 'Escape')
