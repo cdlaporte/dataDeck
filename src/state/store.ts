@@ -78,7 +78,9 @@ export function clone<T>(v: T): T {
 
 export function dimensionFields(table: DataTable | null, types?: FieldType[]) {
   if (!table) return [];
-  return table.fields.filter((f) => f.type !== 'text' && f.distinct > 0 && (!types || types.includes(f.type)));
+  return table.fields.filter(
+    (f) => f.type !== 'text' && f.distinct > 0 && (!types || types.includes(f.type)),
+  );
 }
 
 /** A pleasant first view: colour by a small categorical field when there is one. */
@@ -102,7 +104,8 @@ export function layoutForMode(mode: LayoutMode, table: DataTable, current: Layou
       return { mode, field: prevFields[0] ?? numeric[0]?.name ?? dims[0]?.name ?? '' };
     case '2d': {
       const x = prevFields[0] ?? numeric[0]?.name ?? dims[0]?.name ?? '';
-      const y = prevFields[1] ?? numeric.find((f) => f.name !== x)?.name ?? dims.find((f) => f.name !== x)?.name ?? x;
+      const y =
+        prevFields[1] ?? numeric.find((f) => f.name !== x)?.name ?? dims.find((f) => f.name !== x)?.name ?? x;
       return { mode, x, y };
     }
     case 'tsne': {
@@ -115,9 +118,11 @@ export function layoutForMode(mode: LayoutMode, table: DataTable, current: Layou
 /** Drops references to fields that no longer exist or no longer fit their slot. */
 export function sanitizeView(view: ViewState, table: DataTable): ViewState {
   const v = clone(view);
-  const ok = (name: string | null | undefined) => !!name && !!table.fieldByName[name] && table.fieldByName[name].type !== 'text';
+  const ok = (name: string | null | undefined) =>
+    !!name && !!table.fieldByName[name] && table.fieldByName[name].type !== 'text';
   const l = v.layout;
-  if ((l.mode === '1d' && !ok(l.field)) || (l.mode === '2d' && (!ok(l.x) || !ok(l.y)))) v.layout = { mode: 'cluster' };
+  if ((l.mode === '1d' && !ok(l.field)) || (l.mode === '2d' && (!ok(l.x) || !ok(l.y))))
+    v.layout = { mode: 'cluster' };
   if (l.mode === 'tsne') {
     const fields = l.fields.filter(ok);
     if (fields.length !== l.fields.length) v.layout = { ...l, fields, coords: undefined };
@@ -127,10 +132,16 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
   v.filters = v.filters.filter((f) => {
     const meta = table.fieldByName[f.field];
     if (!meta) return false;
-    return f.kind === 'range' ? isNumericType(meta.type) : meta.type === 'categorical' || meta.type === 'text';
+    return f.kind === 'range'
+      ? isNumericType(meta.type)
+      : meta.type === 'categorical' || meta.type === 'text';
   });
   v.annotations = v.annotations.filter((a) =>
-    a.anchor.kind === 'point' ? a.anchor.row < table.rowCount : a.anchor.kind === 'group' ? !!table.fieldByName[a.anchor.field] : true,
+    a.anchor.kind === 'point'
+      ? a.anchor.row < table.rowCount
+      : a.anchor.kind === 'group'
+        ? !!table.fieldByName[a.anchor.field]
+        : true,
   );
   return v;
 }
@@ -138,7 +149,10 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
 // ---------------------------------------------------------------------------
 // Dataset
 
-export function loadDataset(dataset: Dataset, opts: { overrides?: Record<string, FieldType>; slides?: Slide[]; name?: string } = {}) {
+export function loadDataset(
+  dataset: Dataset,
+  opts: { overrides?: Record<string, FieldType>; slides?: Slide[]; name?: string } = {},
+) {
   const overrides = opts.overrides ?? {};
   const table = buildTable(dataset, overrides);
   const slides = opts.slides ?? [];
@@ -158,7 +172,15 @@ export function loadDataset(dataset: Dataset, opts: { overrides?: Record<string,
 }
 
 export function closeDataset() {
-  set({ dataset: null, table: null, slides: [], activeSlideId: null, view: defaultView(), fieldOverrides: {}, deckName: initial.deckName });
+  set({
+    dataset: null,
+    table: null,
+    slides: [],
+    activeSlideId: null,
+    view: defaultView(),
+    fieldOverrides: {},
+    deckName: initial.deckName,
+  });
 }
 
 export function setFieldType(name: string, type: FieldType | null) {
@@ -206,7 +228,11 @@ export function upsertFilter(filter: Filter) {
 }
 
 export function removeFilter(id: string) {
-  updateView((v) => ({ ...v, filters: v.filters.filter((f) => f.id !== id), layout: withoutCoords(v.layout) }));
+  updateView((v) => ({
+    ...v,
+    filters: v.filters.filter((f) => f.id !== id),
+    layout: withoutCoords(v.layout),
+  }));
 }
 
 export function clearFilters() {
@@ -238,7 +264,10 @@ export function addAnnotation(anchor: Annotation['anchor'], title: string, text 
 }
 
 export function updateAnnotation(id: string, patch: Partial<Annotation>) {
-  updateView((v) => ({ ...v, annotations: v.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)) }));
+  updateView((v) => ({
+    ...v,
+    annotations: v.annotations.map((a) => (a.id === id ? { ...a, ...patch } : a)),
+  }));
 }
 
 export function removeAnnotation(id: string) {
@@ -260,7 +289,11 @@ export function addSlide(view: ViewState, thumbnail: string | null): Slide {
 }
 
 export function updateSlide(id: string, view: ViewState, thumbnail: string | null) {
-  set({ slides: get().slides.map((s) => (s.id === id ? { ...s, view: clone(view), thumbnail: thumbnail ?? s.thumbnail } : s)) });
+  set({
+    slides: get().slides.map((s) =>
+      s.id === id ? { ...s, view: clone(view), thumbnail: thumbnail ?? s.thumbnail } : s,
+    ),
+  });
 }
 
 export function selectSlide(id: string) {
@@ -274,7 +307,10 @@ export function deleteSlide(id: string) {
   const { slides, activeSlideId } = get();
   const i = slides.findIndex((s) => s.id === id);
   const next = slides.filter((s) => s.id !== id);
-  set({ slides: next, activeSlideId: activeSlideId === id ? (next[Math.min(i, next.length - 1)]?.id ?? null) : activeSlideId });
+  set({
+    slides: next,
+    activeSlideId: activeSlideId === id ? (next[Math.min(i, next.length - 1)]?.id ?? null) : activeSlideId,
+  });
 }
 
 export function duplicateSlide(id: string) {
@@ -310,8 +346,19 @@ function stripCoords(v: ViewState) {
 export function startPresentation(index?: number) {
   const { slides, activeSlideId, table } = get();
   if (!slides.length || !table) return;
-  const i = index ?? Math.max(0, slides.findIndex((s) => s.id === activeSlideId));
-  set({ mode: 'present', presentIndex: i, view: sanitizeView(slides[i].view, table), editingAnnotationId: null, tool: 'select' });
+  const i =
+    index ??
+    Math.max(
+      0,
+      slides.findIndex((s) => s.id === activeSlideId),
+    );
+  set({
+    mode: 'present',
+    presentIndex: i,
+    view: sanitizeView(slides[i].view, table),
+    editingAnnotationId: null,
+    tool: 'select',
+  });
 }
 
 export function gotoSlide(i: number) {
@@ -323,7 +370,11 @@ export function gotoSlide(i: number) {
 export function exitPresentation() {
   const { slides, presentIndex, table } = get();
   const slide = slides[presentIndex];
-  set({ mode: 'edit', activeSlideId: slide?.id ?? null, view: slide && table ? sanitizeView(slide.view, table) : get().view });
+  set({
+    mode: 'edit',
+    activeSlideId: slide?.id ?? null,
+    view: slide && table ? sanitizeView(slide.view, table) : get().view,
+  });
 }
 
 // ---------------------------------------------------------------------------
@@ -331,7 +382,14 @@ export function exitPresentation() {
 
 export function toDeck(): Deck {
   const s = get();
-  return { format: 'datadeck', version: 1, name: s.deckName, dataset: s.dataset, fieldOverrides: s.fieldOverrides, slides: s.slides };
+  return {
+    format: 'datadeck',
+    version: 1,
+    name: s.deckName,
+    dataset: s.dataset,
+    fieldOverrides: s.fieldOverrides,
+    slides: s.slides,
+  };
 }
 
 export function loadDeck(deck: Deck) {

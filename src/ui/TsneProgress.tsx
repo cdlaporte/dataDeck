@@ -18,7 +18,12 @@ export function TsneProgress() {
         <i style={{ width: `${pct}%` }} />
       </span>
       {status.state === 'paused' ? (
-        <button type="button" className="btn icon small ghost" aria-label="Resume t-SNE" onClick={() => getEngine()?.resumeTsne()}>
+        <button
+          type="button"
+          className="btn icon small ghost"
+          aria-label="Resume t-SNE"
+          onClick={() => getEngine()?.resumeTsne()}
+        >
           <IconPlay size={14} />
         </button>
       ) : (

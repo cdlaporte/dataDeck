@@ -1,4 +1,11 @@
-import { scaleLinear, scalePoint, scaleUtc, type ScaleLinear, type ScalePoint, type ScaleTime } from 'd3-scale';
+import {
+  scaleLinear,
+  scalePoint,
+  scaleUtc,
+  type ScaleLinear,
+  type ScalePoint,
+  type ScaleTime,
+} from 'd3-scale';
 import { formatDate, formatNumber } from '../../data/format';
 import { MISSING_KEY } from '../../data/filters';
 import type { DataTable, FieldMeta } from '../../state/types';
@@ -60,6 +67,8 @@ export interface LayoutResult {
 
 export interface LayoutInput {
   table: DataTable;
+  /** Whether a legend is shown (reserves space on the right). */
+  legend?: boolean;
   /** Filter mask (1 = passes filters). */
   visible: Uint8Array;
   viewport: Viewport;
@@ -70,15 +79,40 @@ export interface LayoutInput {
 export const MAX_GROUPS = 24;
 export const OTHER_KEY = 'Other';
 
-export function plotRect(vp: Viewport, opts: { yAxis?: boolean; xAxis?: boolean } = {}): Rect {
+export interface PlotOptions {
+  xAxis?: boolean;
+  yAxis?: boolean;
+  /** Approximate width of the widest y tick label (px). */
+  yLabelWidth?: number;
+}
+
+/** Plot area inside the viewport, leaving room for the title, legend, axes and toolbar. */
+export function plotRect(vp: Viewport, opts: PlotOptions = {}, legend = false): Rect {
   const small = vp.width < 640;
-  const left = opts.yAxis ? (small ? 56 : 88) : small ? 20 : 48;
-  const right = small ? 20 : 48;
-  const top = small ? 72 : 104;
-  const bottom = opts.xAxis ? (small ? 56 : 72) : small ? 32 : 56;
+  const yLabel = Math.min(180, Math.max(36, opts.yLabelWidth ?? 36));
+  const left = opts.yAxis ? (small ? 24 : 40) + yLabel + 12 : small ? 20 : 48;
+  const right = legend && !small ? 200 : small ? 20 : 48;
+  const top = small ? 72 : 108;
+  const bottom = opts.xAxis ? (small ? 96 : 128) : small ? 72 : 84;
   const width = Math.max(40, vp.width - left - right);
   const height = Math.max(40, vp.height - top - bottom);
-  return { left, top, right: left + width, bottom: top + height, width, height, cx: left + width / 2, cy: top + height / 2 };
+  return {
+    left,
+    top,
+    right: left + width,
+    bottom: top + height,
+    width,
+    height,
+    cx: left + width / 2,
+    cy: top + height / 2,
+  };
+}
+
+/** Rough label width without DOM measurement (keeps layouts pure). */
+export function estimateLabelWidth(labels: string[], px = 11.5): number {
+  let max = 0;
+  for (const l of labels) max = Math.max(max, l.length);
+  return max * px * 0.58;
 }
 
 export function emptyResult(n: number): LayoutResult {
@@ -121,7 +155,11 @@ export function continuousScale(
     lo -= pad;
     hi += pad;
   }
-  if (meta.type === 'date') return scaleUtc().domain([new Date(lo), new Date(hi)]).range(range).nice();
+  if (meta.type === 'date')
+    return scaleUtc()
+      .domain([new Date(lo), new Date(hi)])
+      .range(range)
+      .nice();
   return scaleLinear().domain([lo, hi]).range(range).nice();
 }
 
@@ -161,7 +199,12 @@ export interface Grouping {
 
 /** Groups visible rows by a categorical field in the profiler's category order,
  *  folding the long tail into "Other" and missing values into their own group. */
-export function groupRows(table: DataTable, meta: FieldMeta, mask: Uint8Array, maxGroups = MAX_GROUPS): Grouping {
+export function groupRows(
+  table: DataTable,
+  meta: FieldMeta,
+  mask: Uint8Array,
+  maxGroups = MAX_GROUPS,
+): Grouping {
   const col = table.columns[meta.name];
   const n = table.rowCount;
   const present = new Map<string, number>();
@@ -231,7 +274,12 @@ export function gridFor(g: number, width: number, height: number): { cols: numbe
 const PACKING = 0.72;
 
 /** Scale factor so that every group's packed cluster diameter fits `available`. */
-export function fitClusters(groupOf: Int32Array, radii: Float32Array, groups: number, available: number): number {
+export function fitClusters(
+  groupOf: Int32Array,
+  radii: Float32Array,
+  groups: number,
+  available: number,
+): number {
   const area = new Float64Array(groups);
   for (let i = 0; i < groupOf.length; i++) if (groupOf[i] >= 0) area[groupOf[i]] += Math.PI * radii[i] ** 2;
   let needed = 0;

@@ -70,6 +70,7 @@ export class Overlay {
   private lastTransform = '';
   private groupField: string | null = null;
   private annotationVersions = new Map<string, string>();
+  private noteSizes = new Map<string, { w: number; h: number }>();
   interactive = false;
 
   constructor(
@@ -120,6 +121,8 @@ export class Overlay {
       .attr('dominant-baseline', axis.orient === 'bottom' ? 'hanging' : 'middle')
       .text((d) => d.label);
     a.append('line').attr('class', 'domain').attr('stroke', t.axis).attr('stroke-width', 1);
+    const labelFont = `11.5px ${FONT}`;
+    a.attr('data-label-width', Math.max(0, ...axis.ticks.map((d) => measure(d.label, labelFont))));
     a.append('text')
       .attr('class', 'axis-title')
       .attr('fill', t.textPrimary)
@@ -141,26 +144,52 @@ export class Overlay {
       const a = select(groups[i]);
       if (!groups[i]) continue;
       if (axis.orient === 'bottom') {
-        const y = Math.min(sy(axis.cross), height - 44);
+        const y = Math.min(sy(axis.cross), height - 100);
         const [s0, s1] = [Math.max(0, sy(axis.span[0])), Math.min(height, sy(axis.span[1]))];
-        a.selectAll<SVGGElement, { pos: number }>('g.tick').attr('transform', (d) => `translate(${sx(d.pos)},0)`);
-        a.selectAll('line.grid').attr('y1', s0).attr('y2', Math.max(s0, Math.min(s1, y)));
+        a.selectAll<SVGGElement, { pos: number }>('g.tick').attr(
+          'transform',
+          (d) => `translate(${sx(d.pos)},0)`,
+        );
+        a.selectAll('line.grid')
+          .attr('y1', s0)
+          .attr('y2', Math.max(s0, Math.min(s1, y)));
         a.selectAll('text.tick-label').attr('y', y + 8);
         const r0 = sx(axis.ticks[0]?.pos ?? 0);
         const r1 = sx(axis.ticks.at(-1)?.pos ?? 0);
-        a.select('line.domain').attr('x1', r0).attr('x2', r1).attr('y1', y).attr('y2', y).attr('opacity', axis.grid ? 1 : 0);
-        a.select('text.axis-title').attr('x', (r0 + r1) / 2).attr('y', y + 34);
+        a.select('line.domain')
+          .attr('x1', r0)
+          .attr('x2', r1)
+          .attr('y1', y)
+          .attr('y2', y)
+          .attr('opacity', axis.grid ? 1 : 0);
+        a.select('text.axis-title')
+          .attr('x', (r0 + r1) / 2)
+          .attr('y', y + 34);
       } else {
-        const x = Math.max(sx(axis.cross), 64);
+        const x = Math.max(sx(axis.cross), 40 + (Number(a.attr('data-label-width')) || 30));
         const [s0, s1] = [Math.max(0, sx(axis.span[0])), Math.min(width, sx(axis.span[1]))];
-        a.selectAll<SVGGElement, { pos: number }>('g.tick').attr('transform', (d) => `translate(0,${sy(d.pos)})`);
-        a.selectAll('line.grid').attr('x1', Math.min(s1, Math.max(s0, x))).attr('x2', s1);
+        a.selectAll<SVGGElement, { pos: number }>('g.tick').attr(
+          'transform',
+          (d) => `translate(0,${sy(d.pos)})`,
+        );
+        a.selectAll('line.grid')
+          .attr('x1', Math.min(s1, Math.max(s0, x)))
+          .attr('x2', s1);
         a.selectAll('text.tick-label').attr('x', x - 8);
         const r0 = sy(axis.ticks[0]?.pos ?? 0);
         const r1 = sy(axis.ticks.at(-1)?.pos ?? 0);
-        a.select('line.domain').attr('x1', x).attr('x2', x).attr('y1', r0).attr('y2', r1).attr('opacity', axis.grid ? 1 : 0);
+        a.select('line.domain')
+          .attr('x1', x)
+          .attr('x2', x)
+          .attr('y1', r0)
+          .attr('y2', r1)
+          .attr('opacity', axis.grid ? 1 : 0);
         const cy = (r0 + r1) / 2;
-        a.select('text.axis-title').attr('transform', `translate(${Math.max(14, x - 58)},${cy}) rotate(-90)`);
+        const labelW = Number(a.attr('data-label-width')) || 30;
+        a.select('text.axis-title').attr(
+          'transform',
+          `translate(${Math.max(14, x - labelW - 22)},${cy}) rotate(-90)`,
+        );
       }
     }
   }
@@ -206,7 +235,7 @@ export class Overlay {
       .style('cursor', this.interactive ? 'copy' : 'default');
   }
 
-  private updateAnnotations(placements: AnnotationPlacement[]) {
+  private updateAnnotations(placements: AnnotationPlacement[], width: number, height: number) {
     const th = this.theme;
     const titleFont = `600 13px ${FONT}`;
     const bodyFont = `12px ${FONT}`;
@@ -216,7 +245,11 @@ export class Overlay {
       .join(
         (enter) => {
           const g = enter.append('g').attr('class', 'annotation entering');
-          g.append('circle').attr('class', 'subject').attr('fill', 'none').attr('stroke', th.textPrimary).attr('stroke-width', 1.25);
+          g.append('circle')
+            .attr('class', 'subject')
+            .attr('fill', 'none')
+            .attr('stroke', th.textPrimary)
+            .attr('stroke-width', 1.25);
           g.append('line').attr('class', 'connector').attr('stroke', th.textPrimary).attr('stroke-width', 1);
           const note = g.append('g').attr('class', 'annotation-note');
           note.append('rect').attr('class', 'hit').attr('fill', 'transparent');
@@ -235,12 +268,26 @@ export class Overlay {
       );
 
     const versions = this.annotationVersions;
+    const sizes = this.noteSizes;
     sel.each(function (d) {
       const g = select(this);
       const a = d.annotation;
       const drag = (g.node() as SVGGElement & { __drag?: { dx: number; dy: number } }).__drag;
-      const dx = drag?.dx ?? a.dx;
-      const dy = drag?.dy ?? a.dy;
+      let dx = drag?.dx ?? a.dx;
+      let dy = drag?.dy ?? a.dy;
+      // Keep notes on screen: mirror the offset when the note would overflow and the other side fits.
+      const size = sizes.get(a.id);
+      if (!drag && size) {
+        const M = 10;
+        if (dx >= 0 ? d.x + dx + size.w > width - M : d.x + dx - size.w < M) {
+          const flipped = -dx;
+          if (flipped >= 0 ? d.x + flipped + size.w <= width - M : d.x + flipped - size.w >= M) dx = flipped;
+        }
+        if (dy >= 0 ? d.y + dy + size.h > height - M : d.y + dy - size.h < M) {
+          const flipped = -dy;
+          if (flipped >= 0 ? d.y + flipped + size.h <= height - M : d.y + flipped - size.h >= M) dy = flipped;
+        }
+      }
       g.style('opacity', d.visible ? '1' : '0');
 
       // Rebuild the text only when content or side changes.
@@ -269,12 +316,14 @@ export class Overlay {
             .attr('fill', l.title ? th.textPrimary : th.textSecondary)
             .text(l.t || ' ');
         });
-        const width = Math.max(
-          40,
-          ...lines.map((l) => measure(l.t, l.title ? titleFont : bodyFont)),
-        );
-        const w = Math.min(NOTE_WIDTH, width);
-        g.select('line.rule').attr('x1', 0).attr('x2', dx >= 0 ? w : -w).attr('y1', 0).attr('y2', 0);
+        const textWidth = Math.max(40, ...lines.map((l) => measure(l.t, l.title ? titleFont : bodyFont)));
+        const w = Math.min(NOTE_WIDTH, textWidth);
+        sizes.set(a.id, { w, h: total + 14 });
+        g.select('line.rule')
+          .attr('x1', 0)
+          .attr('x2', dx >= 0 ? w : -w)
+          .attr('y1', 0)
+          .attr('y2', 0);
         g.select('rect.hit')
           .attr('x', dx >= 0 ? -4 : -w - 4)
           .attr('y', dy >= 0 ? -6 : -total - 8)
@@ -304,7 +353,9 @@ export class Overlay {
   private startDrag(e: PointerEvent, d: AnnotationPlacement) {
     if (e.button !== 0) return;
     e.stopPropagation();
-    const g = (e.currentTarget as Element).parentNode as SVGGElement & { __drag?: { dx: number; dy: number } };
+    const g = (e.currentTarget as Element).parentNode as SVGGElement & {
+      __drag?: { dx: number; dy: number };
+    };
     const start = { x: e.clientX, y: e.clientY, dx: d.annotation.dx, dy: d.annotation.dy };
     let moved = false;
     const move = (ev: PointerEvent) => {
@@ -336,6 +387,6 @@ export class Overlay {
     this.root.attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
     this.positionAxes(t, width, height);
     this.updateGroups(groups, groupField, t);
-    this.updateAnnotations(annotations);
+    this.updateAnnotations(annotations, width, height);
   }
 }

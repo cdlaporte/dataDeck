@@ -36,8 +36,8 @@ export function Welcome({ compact, onDone }: { compact?: boolean; onDone?: () =>
             </div>
             <h1>Turn a dataset into a living presentation.</h1>
             <p className="lede">
-              Every row becomes a bubble in a live force layout. Explore dimensions, filter and annotate, then snapshot each
-              view into a slide — and present them with seamless, animated transitions.
+              Every row becomes a bubble in a live force layout. Explore dimensions, filter and annotate, then
+              snapshot each view into a slide — and present them with seamless, animated transitions.
             </p>
           </div>
           <HeroArt />
@@ -48,7 +48,12 @@ export function Welcome({ compact, onDone }: { compact?: boolean; onDone?: () =>
       {error && (
         <div className="error-banner" role="alert">
           {error}
-          <button type="button" className="btn icon ghost small" aria-label="Dismiss" onClick={() => useStore.setState({ error: null })}>
+          <button
+            type="button"
+            className="btn icon ghost small"
+            aria-label="Dismiss"
+            onClick={() => useStore.setState({ error: null })}
+          >
             <IconX size={14} />
           </button>
         </div>
@@ -76,7 +81,11 @@ export function Welcome({ compact, onDone }: { compact?: boolean; onDone?: () =>
           <p>The first row should contain column names. Works best with up to a few thousand rows.</p>
         </div>
         <div className="actions">
-          <button type="button" className="btn primary" onClick={() => pickFile('.csv,.tsv,.txt', (f) => void handleFile(f))}>
+          <button
+            type="button"
+            className="btn primary"
+            onClick={() => pickFile('.csv,.tsv,.txt', (f) => void handleFile(f))}
+          >
             <IconUpload size={15} /> Upload data
           </button>
           <button type="button" className="btn" onClick={() => pickFile('.json', (f) => void handleFile(f))}>
@@ -88,7 +97,13 @@ export function Welcome({ compact, onDone }: { compact?: boolean; onDone?: () =>
       <h3 className="samples-title">Or start with a sample</h3>
       <div className="samples">
         {SAMPLES.map((s) => (
-          <button key={s.file} type="button" className="sample-card" disabled={!!loading} onClick={() => void open(s)}>
+          <button
+            key={s.file}
+            type="button"
+            className="sample-card"
+            disabled={!!loading}
+            onClick={() => void open(s)}
+          >
             <h4>{s.name}</h4>
             <p>{s.description}</p>
             <div className="sample-meta">
@@ -108,7 +123,7 @@ function HeroArt() {
   const palette = ['#2a78d6', '#eb6834', '#1baf7a'];
   const dots: { x: number; y: number; r: number; c: string }[] = [];
   let seed = 11;
-  const rand = () => ((seed = (seed * 16807) % 2147483647) / 2147483647);
+  const rand = () => (seed = (seed * 16807) % 2147483647) / 2147483647;
   const centers = [
     [110, 150],
     [240, 110],
@@ -118,11 +133,21 @@ function HeroArt() {
     for (let i = 0; i < 46; i++) {
       const a = i * 2.39996;
       const d = 5.2 * Math.sqrt(i + 0.5);
-      dots.push({ x: cx + d * Math.cos(a) + rand() * 2, y: cy + d * Math.sin(a) + rand() * 2, r: 3 + rand() * 2.2, c: palette[g] });
+      dots.push({
+        x: cx + d * Math.cos(a) + rand() * 2,
+        y: cy + d * Math.sin(a) + rand() * 2,
+        r: 3 + rand() * 2.2,
+        c: palette[g],
+      });
     }
   });
   return (
-    <svg className="hero-art" viewBox="0 0 400 300" role="img" aria-label="Bubbles grouped into three clusters">
+    <svg
+      className="hero-art"
+      viewBox="0 0 400 300"
+      role="img"
+      aria-label="Bubbles grouped into three clusters"
+    >
       <text x="24" y="36" fontSize="14" fontWeight="700" fill="var(--text-primary)">
         Three clusters, one story
       </text>

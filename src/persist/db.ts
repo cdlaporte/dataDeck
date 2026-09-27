@@ -20,7 +20,10 @@ export async function initPersistence() {
   useStore.subscribe((s, prev) => {
     if (s.theme !== prev.theme) void idbSet(THEME_KEY, s.theme).catch(() => {});
     const changed =
-      s.dataset !== prev.dataset || s.slides !== prev.slides || s.fieldOverrides !== prev.fieldOverrides || s.deckName !== prev.deckName;
+      s.dataset !== prev.dataset ||
+      s.slides !== prev.slides ||
+      s.fieldOverrides !== prev.fieldOverrides ||
+      s.deckName !== prev.deckName;
     if (!changed) return;
     if (timer) clearTimeout(timer);
     timer = setTimeout(() => {

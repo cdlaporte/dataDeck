@@ -43,7 +43,8 @@ export function inferType(name: string, raw: string[]): FieldType {
   for (const v of present) if (Number.isFinite(parseDate(v))) dates++;
   if (dates / present.length >= 0.9) return 'date';
 
-  if (distinct.size <= 50 && (distinct.size <= 12 || distinct.size / present.length <= 0.5)) return 'categorical';
+  if (distinct.size <= 50 && (distinct.size <= 12 || distinct.size / present.length <= 0.5))
+    return 'categorical';
   return 'text';
 }
 
@@ -83,7 +84,12 @@ function sortCategories(counts: Map<string, number>): CategoryCount[] {
   return list.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
-export function profileColumn(name: string, column: Column, inferredType: FieldType, type: FieldType): FieldMeta {
+export function profileColumn(
+  name: string,
+  column: Column,
+  inferredType: FieldType,
+  type: FieldType,
+): FieldMeta {
   const meta: FieldMeta = { name, inferredType, type, missing: 0, distinct: 0 };
   if (column.kind === 'number') {
     const present: number[] = [];

@@ -136,7 +136,7 @@ export interface Deck {
 
 export const DEFAULT_CAMERA: CameraState = { cx: 0.5, cy: 0.5, k: 1 };
 
-export const DEFAULT_TSNE: TsneParams = { perplexity: 30, epsilon: 10, iterations: 1000 };
+export const DEFAULT_TSNE: TsneParams = { perplexity: 30, epsilon: 100, iterations: 1000 };
 
 export function defaultView(): ViewState {
   return {

@@ -18,6 +18,10 @@ import { StageToolbar } from './StageToolbar';
 import { Tooltip } from './Tooltip';
 import { TsneProgress } from './TsneProgress';
 
+function blurOnEnter(e: React.KeyboardEvent<HTMLInputElement>) {
+  if (e.key === 'Enter' || e.key === 'Escape') e.currentTarget.blur();
+}
+
 export function Stage() {
   const ref = useRef<HTMLDivElement>(null);
   const [hover, setHover] = useState<HoverInfo | null>(null);
@@ -36,7 +40,8 @@ export function Stage() {
         const s = useStore.getState();
         if (s.mode !== 'edit' || !s.table) return;
         if (s.tool === 'annotate') {
-          if (click.row !== null) addAnnotation({ kind: 'point', row: click.row }, rowLabel(s.table, click.row));
+          if (click.row !== null)
+            addAnnotation({ kind: 'point', row: click.row }, rowLabel(s.table, click.row));
           else addAnnotation({ kind: 'free', x: click.nx, y: click.ny }, 'Note');
           set({ tool: 'select' });
         } else if (s.editingAnnotationId) {
@@ -87,6 +92,7 @@ export function Stage() {
           readOnly={presenting}
           tabIndex={presenting ? -1 : 0}
           onChange={(e) => setViewText({ title: e.target.value })}
+          onKeyDown={blurOnEnter}
         />
         {(caption || !presenting) && (
           <input
@@ -97,6 +103,7 @@ export function Stage() {
             readOnly={presenting}
             tabIndex={presenting ? -1 : 0}
             onChange={(e) => setViewText({ caption: e.target.value })}
+            onKeyDown={blurOnEnter}
           />
         )}
       </div>
@@ -108,7 +115,8 @@ export function Stage() {
       {info && (
         <div className="stage-status" aria-live="polite">
           <span>
-            Showing <strong>{info.visibleCount.toLocaleString()}</strong> of {info.totalCount.toLocaleString()}
+            Showing <strong>{info.visibleCount.toLocaleString()}</strong> of{' '}
+            {info.totalCount.toLocaleString()}
           </span>
           {info.message && <span>{info.message}</span>}
         </div>

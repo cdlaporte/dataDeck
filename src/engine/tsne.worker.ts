@@ -2,7 +2,16 @@
 import { TSNE } from './tsne';
 
 export type TsneRequest =
-  | { type: 'start'; runId: number; data: Float32Array; n: number; d: number; perplexity: number; epsilon: number; iterations: number }
+  | {
+      type: 'start';
+      runId: number;
+      data: Float32Array;
+      n: number;
+      d: number;
+      perplexity: number;
+      epsilon: number;
+      iterations: number;
+    }
   | { type: 'pause' | 'resume' | 'stop' };
 
 export type TsneResponse =

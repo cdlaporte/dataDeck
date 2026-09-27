@@ -59,7 +59,13 @@ export function ViewPanel() {
           </div>
           <div className="segmented" role="group" aria-label="Layout">
             {MODES.map(({ mode, label, icon: I, hint }) => (
-              <button key={mode} type="button" aria-pressed={layout.mode === mode} title={hint} onClick={() => setLayoutMode(mode)}>
+              <button
+                key={mode}
+                type="button"
+                aria-pressed={layout.mode === mode}
+                title={hint}
+                onClick={() => setLayoutMode(mode)}
+              >
                 <I size={18} />
                 {label}
               </button>
@@ -67,12 +73,20 @@ export function ViewPanel() {
           </div>
           <div style={{ marginTop: 14 }}>
             {layout.mode === 'cluster' && (
-              <div className="section-hint">Every row is a bubble. Pick a layout above, or click a field on the left to spread the data along it.</div>
+              <div className="section-hint">
+                Every row is a bubble. Pick a layout above, or click a field on the left to spread the data
+                along it.
+              </div>
             )}
             {layout.mode === '1d' && (
               <div className="field-row">
                 <label className="label">Field</label>
-                <FieldSelect fields={dims} value={layout.field} ariaLabel="Layout field" onChange={(v) => v && setLayout({ mode: '1d', field: v })} />
+                <FieldSelect
+                  fields={dims}
+                  value={layout.field}
+                  ariaLabel="Layout field"
+                  onChange={(v) => v && setLayout({ mode: '1d', field: v })}
+                />
               </div>
             )}
             {layout.mode === '2d' && <TwoDControls layout={layout} dims={dims} />}
@@ -114,21 +128,45 @@ export function ViewPanel() {
   );
 }
 
-function TwoDControls({ layout, dims }: { layout: Extract<LayoutSpec, { mode: '2d' }>; dims: ReturnType<typeof dimensionFields> }) {
+function TwoDControls({
+  layout,
+  dims,
+}: {
+  layout: Extract<LayoutSpec, { mode: '2d' }>;
+  dims: ReturnType<typeof dimensionFields>;
+}) {
   return (
     <>
       <div className="field-row">
         <label className="label">X axis</label>
-        <FieldSelect fields={dims} value={layout.x} ariaLabel="X axis field" onChange={(v) => v && setLayout({ ...layout, x: v })} />
+        <FieldSelect
+          fields={dims}
+          value={layout.x}
+          ariaLabel="X axis field"
+          onChange={(v) => v && setLayout({ ...layout, x: v })}
+        />
       </div>
       <div className="field-row">
-        <label className="label" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+        <label
+          className="label"
+          style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}
+        >
           Y axis
-          <button type="button" className="link" style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }} onClick={() => setLayout({ ...layout, x: layout.y, y: layout.x })}>
+          <button
+            type="button"
+            className="link"
+            style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}
+            onClick={() => setLayout({ ...layout, x: layout.y, y: layout.x })}
+          >
             <IconSwap size={12} /> Swap
           </button>
         </label>
-        <FieldSelect fields={dims} value={layout.y} ariaLabel="Y axis field" onChange={(v) => v && setLayout({ ...layout, y: v })} />
+        <FieldSelect
+          fields={dims}
+          value={layout.y}
+          ariaLabel="Y axis field"
+          onChange={(v) => v && setLayout({ ...layout, y: v })}
+        />
       </div>
     </>
   );
@@ -151,7 +189,14 @@ function TsneControls({ layout }: { layout: Extract<LayoutSpec, { mode: 'tsne' }
     setLayout({ ...layout, fields, coords: undefined });
   };
 
-  const param = (key: keyof TsneParams, label: string, min: number, max: number, step: number, hint: string) => (
+  const param = (
+    key: keyof TsneParams,
+    label: string,
+    min: number,
+    max: number,
+    step: number,
+    hint: string,
+  ) => (
     <div className="param-row" title={hint}>
       <span className="label">
         {label}
@@ -179,7 +224,11 @@ function TsneControls({ layout }: { layout: Extract<LayoutSpec, { mode: 'tsne' }
         </label>
         <div className="check-list" style={{ maxHeight: 200 }}>
           {dims.map((f) => (
-            <label key={f.name} className="check-item" style={{ gridTemplateColumns: '16px 20px minmax(0,1fr)' }}>
+            <label
+              key={f.name}
+              className="check-item"
+              style={{ gridTemplateColumns: '16px 20px minmax(0,1fr)' }}
+            >
               <input type="checkbox" checked={selected.has(f.name)} onChange={() => toggle(f.name)} />
               <TypeBadge type={f.type} />
               <span title={f.name}>{f.name}</span>
@@ -187,17 +236,45 @@ function TsneControls({ layout }: { layout: Extract<LayoutSpec, { mode: 'tsne' }
           ))}
         </div>
         <div className="filter-links">
-          <button type="button" className="link" onClick={() => setLayout({ ...layout, fields: dims.filter((f) => isNumericType(f.type)).map((f) => f.name), coords: undefined })}>
+          <button
+            type="button"
+            className="link"
+            onClick={() =>
+              setLayout({
+                ...layout,
+                fields: dims.filter((f) => isNumericType(f.type)).map((f) => f.name),
+                coords: undefined,
+              })
+            }
+          >
             Numeric only
           </button>
-          <button type="button" className="link" onClick={() => setLayout({ ...layout, fields: dims.map((f) => f.name), coords: undefined })}>
+          <button
+            type="button"
+            className="link"
+            onClick={() => setLayout({ ...layout, fields: dims.map((f) => f.name), coords: undefined })}
+          >
             All
           </button>
         </div>
       </div>
       <div style={{ marginTop: 16 }}>
-        {param('perplexity', 'Perplexity', 2, 100, 1, 'Roughly the number of neighbours each point considers. Low = local detail, high = global structure.')}
-        {param('epsilon', 'Learning rate', 1, 500, 1, 'Step size of the optimisation. Higher converges faster but can be unstable.')}
+        {param(
+          'perplexity',
+          'Perplexity',
+          2,
+          100,
+          1,
+          'Roughly the number of neighbours each point considers. Low = local detail, high = global structure.',
+        )}
+        {param(
+          'epsilon',
+          'Learning rate',
+          1,
+          500,
+          1,
+          'Step size of the optimisation. Higher converges faster but can be unstable.',
+        )}
         {param('iterations', 'Iterations', 100, 3000, 50, 'How long to optimise.')}
       </div>
       <div style={{ display: 'flex', gap: 8, marginTop: 14, alignItems: 'center' }}>
@@ -239,13 +316,26 @@ function AnnotationsSection() {
       <div className="field-list">
         {annotations.map((a) => (
           <div key={a.id} className="field-item" style={{ gridTemplateColumns: 'minmax(0,1fr) auto' }}>
-            <button type="button" className="field-name" onClick={() => useStore.setState({ editingAnnotationId: a.id })}>
+            <button
+              type="button"
+              className="field-name"
+              onClick={() => useStore.setState({ editingAnnotationId: a.id })}
+            >
               {a.title || 'Untitled note'}
               <span className="field-meta">
-                {a.anchor.kind === 'point' ? 'On a bubble' : a.anchor.kind === 'group' ? `On group “${a.anchor.value}”` : 'Free'}
+                {a.anchor.kind === 'point'
+                  ? 'On a bubble'
+                  : a.anchor.kind === 'group'
+                    ? `On group “${a.anchor.value}”`
+                    : 'Free'}
               </span>
             </button>
-            <button type="button" className="btn icon small ghost danger" aria-label="Delete annotation" onClick={() => removeAnnotation(a.id)}>
+            <button
+              type="button"
+              className="btn icon small ghost danger"
+              aria-label="Delete annotation"
+              onClick={() => removeAnnotation(a.id)}
+            >
               <IconTrash size={14} />
             </button>
           </div>

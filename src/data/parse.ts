@@ -22,9 +22,9 @@ export function parseNumber(raw: string): number {
 }
 
 const ISO_DATE = /^\d{4}-\d{1,2}(-\d{1,2})?([T ]\d{1,2}:\d{2}(:\d{2}(\.\d+)?)?\s*(Z|[+-]\d{2}:?\d{2})?)?$/i;
-const SLASH_DATE = /^(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}\/\d{1,2}\/\d{1,2})(\s+\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?)?$/i;
-const MONTH_NAME =
-  /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\b/i;
+const SLASH_DATE =
+  /^(\d{1,2}[/.-]\d{1,2}[/.-]\d{2,4}|\d{4}\/\d{1,2}\/\d{1,2})(\s+\d{1,2}:\d{2}(:\d{2})?\s*(am|pm)?)?$/i;
+const MONTH_NAME = /\b(jan|feb|mar|apr|may|jun|jul|aug|sep|sept|oct|nov|dec)[a-z]*\.?\b/i;
 
 /** Parses a date-like string to UTC epoch ms, or NaN. Plain numbers are not dates. */
 export function parseDate(raw: string): number {

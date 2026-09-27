@@ -13,7 +13,12 @@ export function SlideStrip() {
   return (
     <footer className="slide-strip" aria-label="Slides">
       <div className="slide-strip-actions">
-        <button type="button" className="btn primary" onClick={() => void snapshot()} title="Snapshot the current view as a new slide (S)">
+        <button
+          type="button"
+          className="btn primary"
+          onClick={() => void snapshot()}
+          title="Snapshot the current view as a new slide (S)"
+        >
           <IconCamera /> Snapshot
         </button>
         <span className="section-hint" style={{ textAlign: 'center' }}>
@@ -30,14 +35,16 @@ export function SlideStrip() {
         }}
         onDrop={(e) => {
           e.preventDefault();
-          if (dragFrom !== null && dropAt !== null) moveSlide(dragFrom, dropAt > dragFrom ? dropAt - 1 : dropAt);
+          if (dragFrom !== null && dropAt !== null)
+            moveSlide(dragFrom, dropAt > dragFrom ? dropAt - 1 : dropAt);
           setDragFrom(null);
           setDropAt(null);
         }}
       >
         {slides.length === 0 && (
           <div className="slides-empty">
-            Arrange a view you like, then press <b>Snapshot</b> (or <span className="kbd">S</span>) to capture it as a slide.
+            Arrange a view you like, then press <b>Snapshot</b> (or <span className="kbd">S</span>) to capture
+            it as a slide.
           </div>
         )}
         {slides.map((slide, i) => {
@@ -79,10 +86,22 @@ export function SlideStrip() {
                 <span>{slide.view.title || describeLayout(slide.view.layout)}</span>
               </div>
               <div className="thumb-actions">
-                <button type="button" className="btn icon small" aria-label="Duplicate slide" title="Duplicate" onClick={() => duplicateSlide(slide.id)}>
+                <button
+                  type="button"
+                  className="btn icon small"
+                  aria-label="Duplicate slide"
+                  title="Duplicate"
+                  onClick={() => duplicateSlide(slide.id)}
+                >
                   <IconCopy size={13} />
                 </button>
-                <button type="button" className="btn icon small danger" aria-label="Delete slide" title="Delete" onClick={() => deleteSlide(slide.id)}>
+                <button
+                  type="button"
+                  className="btn icon small danger"
+                  aria-label="Delete slide"
+                  title="Delete"
+                  onClick={() => deleteSlide(slide.id)}
+                >
                   <IconTrash size={13} />
                 </button>
               </div>

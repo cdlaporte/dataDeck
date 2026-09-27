@@ -1,6 +1,15 @@
 import { startPresentation, useStore, type ThemePref } from '../state/store';
 import { exportDeck, openFile, pickFile } from './actions';
-import { BrandMark, IconDatabase, IconDownload, IconFolder, IconMonitor, IconMoon, IconPlay, IconSun } from './icons';
+import {
+  BrandMark,
+  IconDatabase,
+  IconDownload,
+  IconFolder,
+  IconMonitor,
+  IconMoon,
+  IconPlay,
+  IconSun,
+} from './icons';
 
 const NEXT_THEME: Record<ThemePref, ThemePref> = { system: 'light', light: 'dark', dark: 'system' };
 
@@ -26,7 +35,12 @@ export function TopBar({ onChangeData }: { onChangeData: () => void }) {
         onChange={(e) => useStore.setState({ deckName: e.target.value })}
       />
       {dataset && table && (
-        <button type="button" className="btn ghost small dataset-chip" onClick={onChangeData} title="Change dataset">
+        <button
+          type="button"
+          className="btn ghost small dataset-chip"
+          onClick={onChangeData}
+          title="Change dataset"
+        >
           <IconDatabase size={14} />
           {dataset.name} · {table.rowCount.toLocaleString()} rows
         </button>
@@ -40,7 +54,13 @@ export function TopBar({ onChangeData }: { onChangeData: () => void }) {
       >
         <IconFolder size={15} /> Open
       </button>
-      <button type="button" className="btn ghost small" title="Download this deck as a .datadeck.json file" disabled={!dataset} onClick={exportDeck}>
+      <button
+        type="button"
+        className="btn ghost small"
+        title="Download this deck as a .datadeck.json file"
+        disabled={!dataset}
+        onClick={exportDeck}
+      >
         <IconDownload size={15} /> Export
       </button>
       <button
@@ -52,7 +72,13 @@ export function TopBar({ onChangeData }: { onChangeData: () => void }) {
       >
         <ThemeIcon size={15} />
       </button>
-      <button type="button" className="btn primary" disabled={!slides} title="Present (P)" onClick={() => startPresentation()}>
+      <button
+        type="button"
+        className="btn primary"
+        disabled={!slides}
+        title="Present (P)"
+        onClick={() => startPresentation()}
+      >
         <IconPlay size={14} /> Present
       </button>
     </header>

@@ -77,8 +77,10 @@ export function DataPanel() {
 
 function describe(f: FieldMeta): string {
   const missing = f.missing ? ` · ${f.missing.toLocaleString()} missing` : '';
-  if (f.type === 'quantitative' && f.min !== undefined) return `${formatNumber(f.min, f)} – ${formatNumber(f.max!, f)}${missing}`;
-  if (f.type === 'date' && f.min !== undefined) return `${formatDate(f.min)} – ${formatDate(f.max!)}${missing}`;
+  if (f.type === 'quantitative' && f.min !== undefined)
+    return `${formatNumber(f.min, f)} – ${formatNumber(f.max!, f)}${missing}`;
+  if (f.type === 'date' && f.min !== undefined)
+    return `${formatDate(f.min)} – ${formatDate(f.max!)}${missing}`;
   return `${f.distinct.toLocaleString()} ${f.type === 'text' ? 'unique' : 'categories'}${missing}`;
 }
 
@@ -93,7 +95,8 @@ function newFilter(f: FieldMeta): Filter | null {
 function FieldItem({ field }: { field: FieldMeta }) {
   const layout = useStore((s) => s.view.layout);
   const active =
-    (layout.mode === '1d' && layout.field === field.name) || (layout.mode === '2d' && (layout.x === field.name || layout.y === field.name));
+    (layout.mode === '1d' && layout.field === field.name) ||
+    (layout.mode === '2d' && (layout.x === field.name || layout.y === field.name));
   const usable = field.type !== 'text' && field.distinct > 0;
   return (
     <div className={`field-item${active ? ' active' : ''}`}>
@@ -102,7 +105,11 @@ function FieldItem({ field }: { field: FieldMeta }) {
         type="button"
         className="field-name"
         disabled={!usable}
-        title={usable ? `Show “${field.name}” on its own` : 'Text fields can’t be laid out — change the type to use it'}
+        title={
+          usable
+            ? `Show “${field.name}” on its own`
+            : 'Text fields can’t be laid out — change the type to use it'
+        }
         onClick={() => setLayout({ mode: '1d', field: field.name })}
       >
         {field.name}
@@ -170,7 +177,11 @@ function TypeMenu({ field }: { field: FieldMeta }) {
             >
               <TypeBadge type={t} />
               {TYPE_LABEL[t]}
-              {t === field.inferredType && <span className="section-hint" style={{ marginLeft: 'auto' }}>detected</span>}
+              {t === field.inferredType && (
+                <span className="section-hint" style={{ marginLeft: 'auto' }}>
+                  detected
+                </span>
+              )}
             </button>
           ))}
         </Popover.Content>
@@ -228,12 +239,22 @@ function FilterCard({ filter, meta }: { filter: Filter; meta: FieldMeta | undefi
           <IconX size={14} />
         </button>
       </div>
-      {filter.kind === 'categorical' ? <CategoryFilter filter={filter} meta={meta} /> : <RangeFilter filter={filter} meta={meta} />}
+      {filter.kind === 'categorical' ? (
+        <CategoryFilter filter={filter} meta={meta} />
+      ) : (
+        <RangeFilter filter={filter} meta={meta} />
+      )}
     </div>
   );
 }
 
-function CategoryFilter({ filter, meta }: { filter: Extract<Filter, { kind: 'categorical' }>; meta: FieldMeta }) {
+function CategoryFilter({
+  filter,
+  meta,
+}: {
+  filter: Extract<Filter, { kind: 'categorical' }>;
+  meta: FieldMeta;
+}) {
   const cats = [...(meta.categories ?? [])];
   if (meta.missing) cats.push({ value: MISSING_KEY, count: meta.missing });
   const excluded = new Set(filter.exclude);
@@ -258,7 +279,11 @@ function CategoryFilter({ filter, meta }: { filter: Extract<Filter, { kind: 'cat
         <button type="button" className="link" onClick={() => upsertFilter({ ...filter, exclude: [] })}>
           All
         </button>
-        <button type="button" className="link" onClick={() => upsertFilter({ ...filter, exclude: cats.map((c) => c.value) })}>
+        <button
+          type="button"
+          className="link"
+          onClick={() => upsertFilter({ ...filter, exclude: cats.map((c) => c.value) })}
+        >
           None
         </button>
       </div>

@@ -213,7 +213,11 @@ export class Engine {
     this.recompute(!prev || !sameLayoutInputs(prev, view));
     const current = this.cameraState();
     const c = view.camera;
-    if (Math.abs(c.cx - current.cx) > 1e-4 || Math.abs(c.cy - current.cy) > 1e-4 || Math.abs(c.k - current.k) > 1e-4) {
+    if (
+      Math.abs(c.cx - current.cx) > 1e-4 ||
+      Math.abs(c.cy - current.cy) > 1e-4 ||
+      Math.abs(c.k - current.k) > 1e-4
+    ) {
       if (opts.animateCamera) this.cameraTween = { from: current, to: { ...c }, start: performance.now() };
       else this.applyCamera(c);
     }
@@ -289,6 +293,15 @@ export class Engine {
     return out.toDataURL('image/jpeg', 0.82);
   }
 
+  /** Fast-forwards the simulation and all tweens (used by tests and screenshots). */
+  settle(ticks = 300) {
+    for (let i = 0; i < ticks; i++) this.sim.tick();
+    this.displayR.set(this.targetR);
+    this.displayRGBA.set(this.targetRGBA);
+    this.cameraTween = null;
+    this.render();
+  }
+
   dispose() {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
@@ -322,12 +335,17 @@ export class Engine {
       meanArea += factors[i] * factors[i];
     }
     meanArea = count ? meanArea / count : 1;
-    const rect = plotRect(viewport);
+    const legend = !!(view.encoding.color || view.encoding.size);
+    const rect = plotRect(viewport, {}, legend);
     const base = baseRadius(count, rect.width, rect.height, meanArea);
     const radii = factors.map((f) => f * base);
 
     const coords = view.layout.mode === 'tsne' ? this.resolveTsne(view.layout, filterMask) : this.leaveTsne();
-    const layout = computeLayout(view.layout, { table, visible: filterMask, viewport, radii }, coords);
+    const layout = computeLayout(
+      view.layout,
+      { table, visible: filterMask, viewport, radii, legend },
+      coords,
+    );
     this.layout = layout;
 
     let visibleCount = 0;
@@ -373,7 +391,10 @@ export class Engine {
   // ---------------------------------------------------------------------------
   // t-SNE
 
-  private resolveTsne(spec: Extract<LayoutSpec, { mode: 'tsne' }>, filterMask: Uint8Array): Float32Array | null {
+  private resolveTsne(
+    spec: Extract<LayoutSpec, { mode: 'tsne' }>,
+    filterMask: Uint8Array,
+  ): Float32Array | null {
     const table = this.table!;
     if (spec.coords) {
       if (spec.coords !== this.storedCoordsRef) {
@@ -381,12 +402,23 @@ export class Engine {
         this.storedCoords = Float32Array.from(spec.coords, (v) => (v === null ? NaN : v));
       }
       if (this.tsneStatus.state === 'running' || this.tsneStatus.state === 'paused') this.stopTsne();
-      if (this.tsneStatus.state !== 'done') this.setTsneStatus({ state: 'done', iteration: spec.params.iterations, total: spec.params.iterations });
+      if (this.tsneStatus.state !== 'done')
+        this.setTsneStatus({
+          state: 'done',
+          iteration: spec.params.iterations,
+          total: spec.params.iterations,
+        });
       return this.storedCoords;
     }
     this.storedCoords = null;
     this.storedCoordsRef = undefined;
-    const key = JSON.stringify([table.datasetId, spec.fields, spec.params, maskHash(filterMask), this.tsneNonce]);
+    const key = JSON.stringify([
+      table.datasetId,
+      spec.fields,
+      spec.params,
+      maskHash(filterMask),
+      this.tsneNonce,
+    ]);
     if (key === this.tsneKey) return this.tsneCoords;
     this.tsneKey = key;
     this.startTsne(spec, filterMask);
@@ -418,7 +450,16 @@ export class Engine {
     const runId = ++this.tsneRunId;
     const perplexity = Math.max(2, Math.min(spec.params.perplexity, (rows.length - 1) / 3));
     this.post(
-      { type: 'start', runId, data, n: rows.length, d, perplexity, epsilon: spec.params.epsilon, iterations: spec.params.iterations },
+      {
+        type: 'start',
+        runId,
+        data,
+        n: rows.length,
+        d,
+        perplexity,
+        epsilon: spec.params.epsilon,
+        iterations: spec.params.iterations,
+      },
       [data.buffer],
     );
     this.setTsneStatus({ state: 'preparing', iteration: 0, total: spec.params.iterations });
@@ -441,7 +482,11 @@ export class Engine {
       });
       this.tsneCoords = coords;
       const paused = this.tsneStatus.state === 'paused';
-      this.setTsneStatus({ state: msg.done ? 'done' : paused ? 'paused' : 'running', iteration: msg.iteration, total: msg.total });
+      this.setTsneStatus({
+        state: msg.done ? 'done' : paused ? 'paused' : 'running',
+        iteration: msg.iteration,
+        total: msg.total,
+      });
       this.recompute(true);
       if (msg.done) this.callbacks.onTsneDone?.(normaliseCoords(coords));
     };
@@ -492,7 +537,11 @@ export class Engine {
     const e = easeInOut(p);
     // Interpolate zoom geometrically so scale changes feel even.
     const k = tw.from.k * (tw.to.k / tw.from.k) ** e;
-    this.applyCamera({ cx: tw.from.cx + (tw.to.cx - tw.from.cx) * e, cy: tw.from.cy + (tw.to.cy - tw.from.cy) * e, k });
+    this.applyCamera({
+      cx: tw.from.cx + (tw.to.cx - tw.from.cx) * e,
+      cy: tw.from.cy + (tw.to.cy - tw.from.cy) * e,
+      k,
+    });
     if (p >= 1) this.cameraTween = null;
   }
 
@@ -621,7 +670,14 @@ export class Engine {
     radius.set(this.displayR.subarray(0, n));
     color.set(this.displayRGBA.subarray(0, n * 4));
     r.render(this.transform);
-    this.overlay.update(this.transform, this.width, this.height, this.groupLabels(), this.layout?.groups?.field ?? null, this.placeAnnotations());
+    this.overlay.update(
+      this.transform,
+      this.width,
+      this.height,
+      this.groupLabels(),
+      this.layout?.groups?.field ?? null,
+      this.placeAnnotations(),
+    );
   }
 
   private groupLabels(): GroupLabel[] {
@@ -640,7 +696,8 @@ export class Engine {
       count[g]++;
     }
     const out: GroupLabel[] = [];
-    for (let g = 0; g < k; g++) if (count[g]) out.push({ key: groups.keys[g], count: count[g], x: sumX[g] / count[g], y: maxY[g] });
+    for (let g = 0; g < k; g++)
+      if (count[g]) out.push({ key: groups.keys[g], count: count[g], x: sumX[g] / count[g], y: maxY[g] });
     return out;
   }
 
@@ -665,7 +722,9 @@ export class Engine {
       }
       if (anchor.kind === 'group') {
         const col = table.columns[anchor.field];
-        let sx = 0, sy = 0, c = 0;
+        let sx = 0,
+          sy = 0,
+          c = 0;
         if (col?.kind === 'string') {
           for (let i = 0; i < nodes.length; i++) {
             if (!this.visible[i] || (col.values[i] ?? '') !== anchor.value) continue;
@@ -706,7 +765,10 @@ function maskHash(mask: Uint8Array): string {
 
 /** Normalises an embedding into the unit square (aspect preserved), 4 decimals. */
 function normaliseCoords(coords: Float32Array): (number | null)[] {
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  let x0 = Infinity,
+    x1 = -Infinity,
+    y0 = Infinity,
+    y1 = -Infinity;
   for (let i = 0; i < coords.length; i += 2) {
     if (!Number.isFinite(coords[i])) continue;
     x0 = Math.min(x0, coords[i]);
@@ -719,4 +781,3 @@ function normaliseCoords(coords: Float32Array): (number | null)[] {
     Number.isFinite(v) ? Math.round(((v - (i % 2 === 0 ? x0 : y0)) / s) * 10000) / 10000 : null,
   );
 }
-

@@ -6,7 +6,9 @@ import {
   continuousAxis,
   continuousScale,
   countMask,
+  formatAxisValue,
   emptyResult,
+  estimateLabelWidth,
   fitClusters,
   fitSwarm,
   gridFor,
@@ -21,7 +23,11 @@ import {
 export type { LayoutResult, AxisGuide, GroupInfo, Viewport } from './common';
 
 /** Computes per-row target positions and guides for a layout spec. Pure. */
-export function computeLayout(spec: LayoutSpec, input: LayoutInput, tsneCoords: Float32Array | null): LayoutResult {
+export function computeLayout(
+  spec: LayoutSpec,
+  input: LayoutInput,
+  tsneCoords: Float32Array | null,
+): LayoutResult {
   const { table } = input;
   switch (spec.mode) {
     case 'cluster':
@@ -42,10 +48,10 @@ export function computeLayout(spec: LayoutSpec, input: LayoutInput, tsneCoords: 
   }
 }
 
-function clusterLayout({ table, visible, viewport, radii }: LayoutInput): LayoutResult {
+function clusterLayout({ table, visible, viewport, radii, legend }: LayoutInput): LayoutResult {
   const n = table.rowCount;
   const res = emptyResult(n);
-  const rect = plotRect(viewport);
+  const rect = plotRect(viewport, {}, legend);
   res.tx.fill(rect.cx);
   res.ty.fill(rect.cy);
   const groupOf = new Int32Array(n).map((_, i) => (visible[i] ? 0 : -1));
@@ -83,16 +89,17 @@ function continuous1D(input: LayoutInput, meta: FieldMeta): LayoutResult {
   if (col.kind !== 'number') return res;
   res.valid = numericValidity(input, meta);
   const mask = andMask(visible, res.valid);
-  const rect = plotRect(viewport, { xAxis: true });
+  const rect = plotRect(viewport, { xAxis: true }, input.legend);
   const x = continuousScale(table, meta, mask, [rect.left, rect.right]);
   for (let i = 0; i < n; i++) {
     if (!res.valid[i]) continue;
     res.tx[i] = Math.max(rect.left, Math.min(rect.right, scaleValue(x, col.values[i])));
     res.ty[i] = rect.cy;
   }
-  res.radiusScale = fitSwarm(res.tx, null, mask, radii, rect.width / 60, rect.height * 0.9);
-  res.strengthX = 0.35;
-  res.strengthY = 0.045;
+  // Slightly smaller bubbles and a strong x pull keep the swarm true to the axis.
+  res.radiusScale = Math.min(0.8, fitSwarm(res.tx, null, mask, radii, rect.width / 60, rect.height * 0.9));
+  res.strengthX = 0.6;
+  res.strengthY = 0.03;
   res.xAxis = continuousAxis(x, meta, 'bottom', rect.bottom, [rect.top, rect.bottom]);
   res.message = hiddenMessage(hiddenCount(visible, res.valid), meta.name);
   return res;
@@ -102,7 +109,7 @@ function categorical1D(input: LayoutInput, meta: FieldMeta): LayoutResult {
   const { table, visible, viewport, radii } = input;
   const n = table.rowCount;
   const res = emptyResult(n);
-  const rect = plotRect(viewport);
+  const rect = plotRect(viewport, {}, input.legend);
   const grouping = groupRows(table, meta, visible);
   const g = grouping.keys.length;
   if (g === 0) return res;
@@ -135,9 +142,16 @@ function layout2D(input: LayoutInput, xm: FieldMeta, ym: FieldMeta): LayoutResul
   const res = emptyResult(n);
   res.valid = numericValidity(input, xm, ym);
   const mask = andMask(visible, res.valid);
-  const rect = plotRect(viewport, { xAxis: true, yAxis: true });
   const xCont = isNumericType(xm.type);
   const yCont = isNumericType(ym.type);
+  const yLabels = yCont
+    ? [formatAxisValue(ym, ym.min ?? 0), formatAxisValue(ym, ym.max ?? 0)]
+    : groupRows(table, ym, mask, 20).keys;
+  const rect = plotRect(
+    viewport,
+    { xAxis: true, yAxis: true, yLabelWidth: estimateLabelWidth(yLabels) },
+    input.legend,
+  );
 
   const axis = (meta: FieldMeta, cont: boolean, orient: 'bottom' | 'left') => {
     const range: [number, number] = orient === 'bottom' ? [rect.left, rect.right] : [rect.bottom, rect.top];
@@ -149,7 +163,8 @@ function layout2D(input: LayoutInput, xm: FieldMeta, ym: FieldMeta): LayoutResul
       const lo = Math.min(...range);
       const hi = Math.max(...range);
       return {
-        pos: (i: number) => Math.max(lo, Math.min(hi, scaleValue(scale, col.kind === 'number' ? col.values[i] : NaN))),
+        pos: (i: number) =>
+          Math.max(lo, Math.min(hi, scaleValue(scale, col.kind === 'number' ? col.values[i] : NaN))),
         lane: null as Int32Array | null,
         step: 0,
         guide: continuousAxis(scale, meta, orient, cross, span),
@@ -199,20 +214,32 @@ function layout2D(input: LayoutInput, xm: FieldMeta, ym: FieldMeta): LayoutResul
     res.radiusScale = fitClusters(combined, radii, X.guide.ticks.length * ny, Math.min(X.step, Y.step) * 0.9);
     res.strengthX = res.strengthY = 0.12;
   }
-  res.message = hiddenMessage(hiddenCount(visible, res.valid), [xm, ym].filter((m) => isNumericType(m.type)).map((m) => m.name).join(' or '));
+  res.message = hiddenMessage(
+    hiddenCount(visible, res.valid),
+    [xm, ym]
+      .filter((m) => isNumericType(m.type))
+      .map((m) => m.name)
+      .join(' or '),
+  );
   return res;
 }
 
-function tsneLayout({ table, visible, viewport }: LayoutInput, coords: Float32Array | null): LayoutResult {
+function tsneLayout(
+  { table, visible, viewport, legend }: LayoutInput,
+  coords: Float32Array | null,
+): LayoutResult {
   const n = table.rowCount;
   const res = emptyResult(n);
-  const rect = plotRect(viewport);
+  const rect = plotRect(viewport, {}, legend);
   if (!coords) {
     res.valid = visible.slice();
     res.message = 'Computing t-SNE…';
     return res;
   }
-  let x0 = Infinity, x1 = -Infinity, y0 = Infinity, y1 = -Infinity;
+  let x0 = Infinity,
+    x1 = -Infinity,
+    y0 = Infinity,
+    y1 = -Infinity;
   for (let i = 0; i < n; i++) {
     const x = coords[i * 2];
     const y = coords[i * 2 + 1];
@@ -224,7 +251,8 @@ function tsneLayout({ table, visible, viewport }: LayoutInput, coords: Float32Ar
     if (y > y1) y1 = y;
   }
   if (!Number.isFinite(x0)) return res;
-  const s = Math.min(rect.width / Math.max(1e-9, x1 - x0), rect.height / Math.max(1e-9, y1 - y0));
+  // Inset: points sharing near-identical targets pack into blobs that extend past them.
+  const s = 0.86 * Math.min(rect.width / Math.max(1e-9, x1 - x0), rect.height / Math.max(1e-9, y1 - y0));
   const mx = (x0 + x1) / 2;
   const my = (y0 + y1) / 2;
   for (let i = 0; i < n; i++) {

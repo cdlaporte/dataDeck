@@ -4,12 +4,25 @@ import type { FieldMeta, FieldType } from '../state/types';
 import { IconChevronDown } from './icons';
 import { TYPE_GLYPH, TYPE_LABEL } from './fieldTypes';
 
-
-export function TypeBadge({ type, onClick, title }: { type: FieldType; onClick?: () => void; title?: string }) {
+export function TypeBadge({
+  type,
+  onClick,
+  title,
+}: {
+  type: FieldType;
+  onClick?: () => void;
+  title?: string;
+}) {
   const label = title ?? TYPE_LABEL[type];
   if (onClick) {
     return (
-      <button type="button" className={`type-badge ${type}`} title={label} aria-label={label} onClick={onClick}>
+      <button
+        type="button"
+        className={`type-badge ${type}`}
+        title={label}
+        aria-label={label}
+        onClick={onClick}
+      >
         {TYPE_GLYPH[type]}
       </button>
     );
@@ -42,7 +55,10 @@ export function FieldSelect({
 }) {
   const groups: FieldType[] = ['quantitative', 'date', 'categorical'];
   return (
-    <RSelect.Root value={value ?? (allowNone ? NONE : undefined)} onValueChange={(v) => onChange(v === NONE ? null : v)}>
+    <RSelect.Root
+      value={value ?? (allowNone ? NONE : undefined)}
+      onValueChange={(v) => onChange(v === NONE ? null : v)}
+    >
       <RSelect.Trigger className="select-trigger" aria-label={ariaLabel}>
         <RSelect.Value placeholder={placeholder} />
         <RSelect.Icon>
@@ -121,7 +137,15 @@ export function Slider({
 }
 
 /** Tiny histogram / category bar sparkline for the field list. */
-export function Sparkline({ field, width = 64, height = 22 }: { field: FieldMeta; width?: number; height?: number }) {
+export function Sparkline({
+  field,
+  width = 64,
+  height = 22,
+}: {
+  field: FieldMeta;
+  width?: number;
+  height?: number;
+}) {
   let bars: number[] = [];
   if (field.histogram) bars = field.histogram.map((b) => b.count);
   else if (field.categories) bars = field.categories.slice(0, 12).map((c) => c.count);

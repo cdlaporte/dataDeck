@@ -23,8 +23,18 @@ export function PresentControls() {
 
   return (
     <>
-      <div className={`present-controls${idle ? ' idle' : ''}`} role="toolbar" aria-label="Presentation controls">
-        <button type="button" className="btn icon ghost" aria-label="Previous slide" disabled={index === 0} onClick={() => gotoSlide(index - 1)}>
+      <div
+        className={`present-controls${idle ? ' idle' : ''}`}
+        role="toolbar"
+        aria-label="Presentation controls"
+      >
+        <button
+          type="button"
+          className="btn icon ghost"
+          aria-label="Previous slide"
+          disabled={index === 0}
+          onClick={() => gotoSlide(index - 1)}
+        >
           <IconChevronLeft />
         </button>
         <span className="present-count">
@@ -39,7 +49,12 @@ export function PresentControls() {
         >
           <IconChevronRight />
         </button>
-        <button type="button" className="btn icon ghost" aria-label="Exit presentation" onClick={exitPresentation}>
+        <button
+          type="button"
+          className="btn icon ghost"
+          aria-label="Exit presentation"
+          onClick={exitPresentation}
+        >
           <IconX />
         </button>
       </div>

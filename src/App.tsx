@@ -34,8 +34,10 @@ function useShortcuts() {
       const s = useStore.getState();
       if (!s.table) return;
       if (s.mode === 'present') {
-        if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key)) gotoSlide(s.presentIndex + 1);
-        else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key)) gotoSlide(s.presentIndex - 1);
+        if (['ArrowRight', 'ArrowDown', 'PageDown', ' ', 'Enter'].includes(e.key))
+          gotoSlide(s.presentIndex + 1);
+        else if (['ArrowLeft', 'ArrowUp', 'PageUp', 'Backspace'].includes(e.key))
+          gotoSlide(s.presentIndex - 1);
         else if (e.key === 'Home') gotoSlide(0);
         else if (e.key === 'End') gotoSlide(s.slides.length - 1);
         else if (e.key === 'Escape') exitPresentation();

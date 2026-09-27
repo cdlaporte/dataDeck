@@ -1,4 +1,9 @@
-import { forceCollide, forceSimulation, type Simulation as D3Simulation, type SimulationNodeDatum } from 'd3-force';
+import {
+  forceCollide,
+  forceSimulation,
+  type Simulation as D3Simulation,
+  type SimulationNodeDatum,
+} from 'd3-force';
 
 export interface SimNode extends SimulationNodeDatum {
   index: number;

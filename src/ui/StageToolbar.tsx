@@ -8,7 +8,8 @@ export function StageToolbar() {
   const hasSlides = useStore((s) => s.slides.length > 0);
   const dirty = useStore(isViewDirty);
   const camera = useStore((s) => s.view.camera);
-  const zoomed = Math.abs(camera.k - 1) > 1e-3 || Math.abs(camera.cx - 0.5) > 1e-3 || Math.abs(camera.cy - 0.5) > 1e-3;
+  const zoomed =
+    Math.abs(camera.k - 1) > 1e-3 || Math.abs(camera.cx - 0.5) > 1e-3 || Math.abs(camera.cy - 0.5) > 1e-3;
   const setTool = (t: 'select' | 'annotate') => useStore.setState({ tool: t });
 
   return (
@@ -45,11 +46,21 @@ export function StageToolbar() {
       </button>
       <span className="sep" />
       {dirty && (
-        <button type="button" className="btn ghost" title="Save changes to the selected slide (U)" onClick={() => void updateActiveSlide()}>
+        <button
+          type="button"
+          className="btn ghost"
+          title="Save changes to the selected slide (U)"
+          onClick={() => void updateActiveSlide()}
+        >
           <IconSave /> Update slide
         </button>
       )}
-      <button type="button" className="btn primary" title="Snapshot this view as a new slide (S)" onClick={() => void snapshot()}>
+      <button
+        type="button"
+        className="btn primary"
+        title="Snapshot this view as a new slide (S)"
+        onClick={() => void snapshot()}
+      >
         <IconCamera /> Snapshot
       </button>
       <button

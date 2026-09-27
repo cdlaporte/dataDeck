@@ -17,11 +17,13 @@ export function parseDeck(text: string): Deck {
     throw new DeckFormatError('This file is not valid JSON.');
   }
   const d = raw as Partial<Deck>;
-  if (!d || typeof d !== 'object' || d.format !== 'datadeck') throw new DeckFormatError('This is not a DataDeck file.');
+  if (!d || typeof d !== 'object' || d.format !== 'datadeck')
+    throw new DeckFormatError('This is not a DataDeck file.');
   if (d.version !== 1) throw new DeckFormatError(`Unsupported DataDeck version: ${String(d.version)}.`);
   if (!Array.isArray(d.slides)) throw new DeckFormatError('The deck has no slides array.');
   const ds = d.dataset;
-  if (ds && (!Array.isArray(ds.columns) || !Array.isArray(ds.rows))) throw new DeckFormatError('The deck dataset is malformed.');
+  if (ds && (!Array.isArray(ds.columns) || !Array.isArray(ds.rows)))
+    throw new DeckFormatError('The deck dataset is malformed.');
   return {
     format: 'datadeck',
     version: 1,

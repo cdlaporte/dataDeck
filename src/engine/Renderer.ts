@@ -98,7 +98,12 @@ export class Renderer {
   highlight!: InstancedBufferAttribute;
 
   constructor(readonly canvas: HTMLCanvasElement) {
-    this.renderer = new WebGLRenderer({ canvas, antialias: false, alpha: false, preserveDrawingBuffer: false });
+    this.renderer = new WebGLRenderer({
+      canvas,
+      antialias: false,
+      alpha: false,
+      preserveDrawingBuffer: false,
+    });
     this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2));
     const quad = new Float32Array([-1, -1, 0, 1, -1, 0, 1, 1, 0, -1, 1, 0]);
     this.geometry.setAttribute('position', new BufferAttribute(quad, 3));

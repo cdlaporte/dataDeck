@@ -13,7 +13,8 @@ export function Legend() {
 
   const excluded = new Set<string>();
   if (color.kind === 'categorical') {
-    for (const f of filters) if (f.kind === 'categorical' && f.field === color.field) f.exclude.forEach((v) => excluded.add(v));
+    for (const f of filters)
+      if (f.kind === 'categorical' && f.field === color.field) f.exclude.forEach((v) => excluded.add(v));
   }
 
   return (
@@ -45,7 +46,10 @@ export function Legend() {
       {color.kind === 'sequential' && (
         <div>
           <div className="legend-title">{color.field}</div>
-          <div className="legend-ramp" style={{ background: `linear-gradient(90deg, ${color.stops.join(',')})` }} />
+          <div
+            className="legend-ramp"
+            style={{ background: `linear-gradient(90deg, ${color.stops.join(',')})` }}
+          />
           <div className="legend-ramp-labels">
             <span>{formatAxisValue(table.fieldByName[color.field], color.min)}</span>
             <span>{formatAxisValue(table.fieldByName[color.field], color.max)}</span>

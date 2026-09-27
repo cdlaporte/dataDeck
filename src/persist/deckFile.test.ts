@@ -16,7 +16,12 @@ describe('deck file', () => {
         view: {
           ...defaultView(),
           title: 'Hello',
-          layout: { mode: 'tsne', fields: ['a'], params: { perplexity: 5, epsilon: 10, iterations: 100 }, coords: [0.1, null] },
+          layout: {
+            mode: 'tsne',
+            fields: ['a'],
+            params: { perplexity: 5, epsilon: 10, iterations: 100 },
+            coords: [0.1, null],
+          },
         },
       },
     ],

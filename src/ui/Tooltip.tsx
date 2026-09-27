@@ -38,7 +38,10 @@ export function Tooltip({ hover }: { hover: HoverInfo }) {
   let swatch: string | null = null;
   if (legend?.kind === 'categorical') {
     const v = formatCell(table, legend.field, hover.row);
-    swatch = legend.items.find((i) => i.label === v)?.color ?? legend.items.find((i) => i.label.startsWith('Other ('))?.color ?? null;
+    swatch =
+      legend.items.find((i) => i.label === v)?.color ??
+      legend.items.find((i) => i.label.startsWith('Other ('))?.color ??
+      null;
   }
 
   return (

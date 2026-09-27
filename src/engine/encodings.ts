@@ -2,12 +2,26 @@ import { color as parseColor } from 'd3-color';
 import { scaleLinear, scaleSqrt } from 'd3-scale';
 import { MISSING_KEY } from '../data/filters';
 import type { DataTable, Encoding } from '../state/types';
-import { CATEGORICAL, DEFAULT_COLOR, MAX_CATEGORY_COLORS, NEUTRAL, SEQUENTIAL, type ThemeName } from './palette';
+import {
+  CATEGORICAL,
+  DEFAULT_COLOR,
+  MAX_CATEGORY_COLORS,
+  NEUTRAL,
+  SEQUENTIAL,
+  type ThemeName,
+} from './palette';
 
 export type ColorLegend =
   | { kind: 'none' }
   | { kind: 'categorical'; field: string; items: { label: string; color: string }[] }
-  | { kind: 'sequential'; field: string; fieldType: 'quantitative' | 'date'; min: number; max: number; stops: string[] };
+  | {
+      kind: 'sequential';
+      field: string;
+      fieldType: 'quantitative' | 'date';
+      min: number;
+      max: number;
+      stops: string[];
+    };
 
 export interface ColorEncoding {
   legend: ColorLegend;
@@ -27,7 +41,14 @@ export function colorLegend(table: DataTable, field: string | null, theme: Theme
   if (!field || !meta) return { kind: 'none' };
   if (meta.type === 'quantitative' || meta.type === 'date') {
     if (meta.min === undefined || meta.max === undefined) return { kind: 'none' };
-    return { kind: 'sequential', field, fieldType: meta.type, min: meta.min, max: meta.max, stops: SEQUENTIAL[theme] };
+    return {
+      kind: 'sequential',
+      field,
+      fieldType: meta.type,
+      min: meta.min,
+      max: meta.max,
+      stops: SEQUENTIAL[theme],
+    };
   }
   const cats = meta.categories ?? [];
   const palette = CATEGORICAL[theme];
@@ -85,10 +106,13 @@ export interface SizeLegend {
   rMax: number;
 }
 
-export const SIZE_RANGE: [number, number] = [0.45, 2.1];
+export const SIZE_RANGE: [number, number] = [0.5, 2.2];
 
 /** Radius multipliers per row (1 = base radius). */
-export function computeSizes(table: DataTable, field: string | null): { factors: Float32Array; legend: SizeLegend | null } {
+export function computeSizes(
+  table: DataTable,
+  field: string | null,
+): { factors: Float32Array; legend: SizeLegend | null } {
   const n = table.rowCount;
   const factors = new Float32Array(n).fill(1);
   const meta = field ? table.fieldByName[field] : undefined;
@@ -97,20 +121,31 @@ export function computeSizes(table: DataTable, field: string | null): { factors:
   }
   const col = table.columns[field];
   if (col.kind !== 'number') return { factors, legend: null };
-  const lo = meta.min >= 0 ? 0 : meta.min;
-  const scale = scaleSqrt().domain([lo, meta.max]).range(SIZE_RANGE).clamp(true);
+  // Min→max rather than zero-anchored: keeps differences visible for exploration.
+  const scale = scaleSqrt().domain([meta.min, meta.max]).range(SIZE_RANGE).clamp(true);
   for (let i = 0; i < n; i++) {
     const v = col.values[i];
     factors[i] = Number.isFinite(v) ? Math.max(SIZE_RANGE[0], scale(v)) : SIZE_RANGE[0] * 0.8;
   }
   return {
     factors,
-    legend: { field, min: meta.min, max: meta.max, rMin: Math.max(SIZE_RANGE[0], scale(meta.min)), rMax: scale(meta.max) },
+    legend: {
+      field,
+      min: meta.min,
+      max: meta.max,
+      rMin: Math.max(SIZE_RANGE[0], scale(meta.min)),
+      rMax: scale(meta.max),
+    },
   };
 }
 
 /** Base bubble radius (world px) so visible bubbles fill a comfortable share of the plot area. */
-export function baseRadius(visibleCount: number, plotWidth: number, plotHeight: number, meanFactor = 1): number {
+export function baseRadius(
+  visibleCount: number,
+  plotWidth: number,
+  plotHeight: number,
+  meanFactor = 1,
+): number {
   const area = Math.max(1, plotWidth * plotHeight);
   const r = Math.sqrt((area * 0.16) / (Math.max(1, visibleCount) * Math.PI)) / Math.sqrt(meanFactor);
   return Math.max(2, Math.min(18, r));

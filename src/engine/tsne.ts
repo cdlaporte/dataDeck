@@ -262,13 +262,16 @@ export function buildTsneInput(
         if (Number.isFinite(v)) ss += (v - mean) ** 2;
       }
       const sd = Math.sqrt(ss / Math.max(1, cnt - 1)) || 1;
-      blocks.push(Float32Array.from(rows, (r) => (Number.isFinite(col.values[r]) ? (col.values[r] - mean) / sd : 0)));
+      blocks.push(
+        Float32Array.from(rows, (r) => (Number.isFinite(col.values[r]) ? (col.values[r] - mean) / sd : 0)),
+      );
     } else {
       const cats = [...new Set(rows.map((r) => col.values[r] ?? '∅'))];
       if (cats.length > 64) continue;
       // Weight one-hot columns so a categorical field contributes like one unit-variance feature.
       const w = 1 / Math.SQRT2;
-      for (const c of cats) blocks.push(Float32Array.from(rows, (r) => ((col.values[r] ?? '∅') === c ? w : 0)));
+      for (const c of cats)
+        blocks.push(Float32Array.from(rows, (r) => ((col.values[r] ?? '∅') === c ? w : 0)));
     }
   }
   const d = blocks.length;
