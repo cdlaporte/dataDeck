@@ -80,7 +80,7 @@ function describe(f: FieldMeta): string {
   if (f.type === 'quantitative' && f.min !== undefined)
     return `${formatNumber(f.min, f)} – ${formatNumber(f.max!, f)}${missing}`;
   if (f.type === 'date' && f.min !== undefined)
-    return `${formatDate(f.min)} – ${formatDate(f.max!)}${missing}`;
+    return `${formatDate(f.min, f.dateUnit)} – ${formatDate(f.max!, f.dateUnit)}${missing}`;
   return `${f.distinct.toLocaleString()} ${f.type === 'text' ? 'unique' : 'categories'}${missing}`;
 }
 
@@ -294,7 +294,7 @@ function CategoryFilter({
 function RangeFilter({ filter, meta }: { filter: Extract<Filter, { kind: 'range' }>; meta: FieldMeta }) {
   const lo = meta.min ?? 0;
   const hi = meta.max ?? 1;
-  const fmt = (v: number) => (meta.type === 'date' ? formatDate(v) : formatNumber(v, meta));
+  const fmt = (v: number) => (meta.type === 'date' ? formatDate(v, meta.dateUnit) : formatNumber(v, meta));
   const step = meta.type === 'date' ? 86400000 : meta.isInteger ? 1 : (hi - lo) / 200 || 1;
   const hist = meta.histogram ?? [];
   const maxCount = Math.max(1, ...hist.map((b) => b.count));

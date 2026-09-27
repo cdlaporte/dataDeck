@@ -22,9 +22,13 @@ import { Welcome } from './ui/Welcome';
 
 const MODE_KEYS: Record<string, LayoutMode> = { '1': 'cluster', '2': '1d', '3': '2d', '4': 'tsne' };
 
+const NON_TEXT_INPUTS = new Set(['checkbox', 'radio', 'range', 'button', 'submit', 'reset', 'file', 'color']);
+
 function isTyping(e: KeyboardEvent) {
   const el = e.target as HTMLElement | null;
-  return !!el && (el.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(el.tagName));
+  if (!el) return false;
+  if (el instanceof HTMLInputElement) return !NON_TEXT_INPUTS.has(el.type);
+  return el.isContentEditable || el.tagName === 'TEXTAREA' || el.tagName === 'SELECT';
 }
 
 function useShortcuts() {

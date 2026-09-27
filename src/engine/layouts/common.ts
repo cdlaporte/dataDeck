@@ -320,5 +320,5 @@ export function hiddenMessage(hidden: number, field: string): string | undefined
 }
 
 export function formatAxisValue(meta: FieldMeta, v: number): string {
-  return meta.type === 'date' ? formatDate(v) : formatNumber(v, meta);
+  return meta.type === 'date' ? formatDate(v, meta.dateUnit) : formatNumber(v, meta);
 }

@@ -4,6 +4,7 @@ import type {
   Column,
   DataTable,
   Dataset,
+  DateUnit,
   FieldMeta,
   FieldType,
   HistogramBin,
@@ -84,6 +85,16 @@ function sortCategories(counts: Map<string, number>): CategoryCount[] {
   return list.sort((a, b) => b.count - a.count || a.value.localeCompare(b.value));
 }
 
+function dateUnit(values: number[]): DateUnit {
+  let unit: DateUnit = 'year';
+  for (const v of values) {
+    const d = new Date(v);
+    if (d.getUTCHours() || d.getUTCMinutes() || d.getUTCSeconds()) return 'time';
+    if (d.getUTCMonth() !== 0 || d.getUTCDate() !== 1) unit = 'day';
+  }
+  return unit;
+}
+
 export function profileColumn(
   name: string,
   column: Column,
@@ -104,6 +115,7 @@ export function profileColumn(
       meta.median = median(present);
       meta.isInteger = present.every(Number.isInteger);
       meta.histogram = histogram(present, lo, hi);
+      if (type === 'date') meta.dateUnit = dateUnit(present);
     }
   } else {
     const counts = new Map<string, number>();

@@ -1,9 +1,5 @@
-import {
-  forceCollide,
-  forceSimulation,
-  type Simulation as D3Simulation,
-  type SimulationNodeDatum,
-} from 'd3-force';
+import { forceSimulation, type Simulation as D3Simulation, type SimulationNodeDatum } from 'd3-force';
+import { GridCollide } from './collide';
 
 export interface SimNode extends SimulationNodeDatum {
   index: number;
@@ -30,7 +26,8 @@ export class Simulation {
   private collideR: Float32Array = new Float32Array(0);
   private strengthX = 0.08;
   private strengthY = 0.08;
-  private collide = forceCollide<SimNode>().iterations(2);
+  private collideStrength = 1;
+  private collide = new GridCollide();
 
   constructor() {
     this.sim = forceSimulation<SimNode>([])
@@ -39,7 +36,7 @@ export class Simulation {
       .alphaDecay(0.018)
       .alphaTarget(ALPHA_TARGET)
       .force('target', (alpha: number) => this.targetForce(alpha))
-      .force('collide', this.collide);
+      .force('collide', () => this.collide.apply(this.nodes, this.collideR, this.collideStrength, 3));
   }
 
   /** Replaces the node set, seeding positions in a phyllotaxis disc around (cx, cy). */
@@ -54,7 +51,6 @@ export class Simulation {
     this.ty = new Float32Array(n).fill(cy);
     this.collideR = new Float32Array(n);
     this.sim.nodes(this.nodes);
-    this.collide.radius((d) => this.collideR[d.index]);
   }
 
   /** Updates targets (NaN entries keep the previous target). */
@@ -69,7 +65,7 @@ export class Simulation {
 
   setCollision(radii: Float32Array, strength: number) {
     this.collideR = radii;
-    this.collide.strength(strength).radius((d) => this.collideR[d.index]);
+    this.collideStrength = strength;
   }
 
   reheat(alpha = 0.9) {

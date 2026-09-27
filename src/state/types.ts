@@ -3,6 +3,8 @@
 
 export type FieldType = 'quantitative' | 'categorical' | 'date' | 'text';
 
+export type DateUnit = 'year' | 'day' | 'time';
+
 export interface HistogramBin {
   x0: number;
   x1: number;
@@ -28,6 +30,8 @@ export interface FieldMeta {
   mean?: number;
   median?: number;
   isInteger?: boolean;
+  /** Dates: finest unit present, for formatting. */
+  dateUnit?: DateUnit;
   histogram?: HistogramBin[];
   /** Categorical & text: sorted by count, descending. */
   categories?: CategoryCount[];
