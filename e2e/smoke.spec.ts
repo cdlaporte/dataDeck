@@ -268,3 +268,101 @@ test('lasso: drill in, exclude and annotate a selection', async ({ page }) => {
   await expect(page.locator('.selection-bar')).toHaveCount(0);
   expect(errors).toEqual([]);
 });
+
+test('drag a field onto an axis, overlap, log scale, undo/redo', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByRole('button', { name: /Palmer penguins/ }).click();
+  await expect(page.locator('.stage-status')).toContainText('344');
+
+  // Drag a field from the Data panel onto the X axis zone → 2D.
+  const stage = (await page.locator('.stage').boundingBox())!;
+  await page
+    .locator('.field-item', { hasText: 'body_mass_g' })
+    .dragTo(page.locator('.stage'), { targetPosition: { x: stage.width / 2, y: stage.height - 100 } });
+  await expect
+    .poll(async () => (await state(page)).view.layout)
+    .toMatchObject({ mode: '2d', x: 'body_mass_g' });
+  // …and another onto the Y axis zone.
+  await page
+    .locator('.field-item', { hasText: 'flipper_length_mm' })
+    .dragTo(page.locator('.stage'), { targetPosition: { x: 50, y: stage.height / 2 } });
+  await expect
+    .poll(async () => (await state(page)).view.layout)
+    .toMatchObject({ mode: '2d', x: 'body_mass_g', y: 'flipper_length_mm' });
+  await settle(page);
+  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText('body_mass_g');
+
+  // Collisions off.
+  await page.getByRole('switch', { name: /overlap/i }).check();
+  expect((await state(page)).view.overlap).toBe(true);
+
+  // Log scale on the x axis.
+  await page.getByRole('button', { name: 'Log scale for X axis' }).click();
+  await settle(page);
+  await expect(page.locator('.guide-set:not(.leaving) g[data-orient="bottom"] .axis-title')).toHaveText('body_mass_g (log)');
+
+  // Undo / redo (keyboard); the edits above were separate steps.
+  await page.locator('.stage').click({ position: { x: 5, y: 5 } });
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect.poll(async () => (await state(page)).view.layout.logX ?? false).toBe(false);
+  await page.keyboard.press('ControlOrMeta+Shift+z');
+  await expect.poll(async () => (await state(page)).view.layout.logX).toBe(true);
+  expect(errors).toEqual([]);
+});
+
+test('find a row, highlight an annotated selection, export a PDF', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByRole('button', { name: /Movies/ }).click();
+  await expect(page.locator('.stage-status')).toContainText('3,201');
+  await page.locator('.field-name', { hasText: 'Major Genre' }).click();
+  await settle(page);
+
+  // Find.
+  await page.keyboard.press('ControlOrMeta+f');
+  await page.getByLabel('Search rows').fill('Titanic');
+  await expect(page.locator('.find-hit').first()).toContainText('Titanic');
+  await page.keyboard.press('Enter');
+  await expect(page.locator('.selection-count')).toHaveText('1 selected');
+
+  // Annotate the selection and highlight it: everything else turns grey.
+  await page
+    .getByRole('toolbar', { name: 'Selection actions' })
+    .getByRole('button', { name: 'Annotate' })
+    .click();
+  await page.getByRole('switch', { name: 'Highlight these points' }).check();
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('.legend-chip')).toContainText('Highlighting 1 bubble');
+  const colours = await page.evaluate(() => {
+    const e = (
+      window as unknown as { __datadeck: { engine: () => { targetRGBA: Float32Array } } }
+    ).__datadeck.engine();
+    const s = (window as unknown as Hooks).__datadeck.store.getState();
+    const row = s.view.annotations[0].anchor.rows[0] as number;
+    const other = row === 0 ? 1 : 0;
+    const rgb = (i: number) =>
+      Array.from(e.targetRGBA.slice(i * 4, i * 4 + 3)).map((v) => Math.round(v * 255));
+    return { highlighted: rgb(row), other: rgb(other) };
+  });
+  expect(colours.other).toEqual([163, 162, 156]); // neutral grey (light theme)
+  expect(colours.highlighted).not.toEqual([163, 162, 156]);
+
+  // Two slides → PDF.
+  await page.keyboard.press('s');
+  await expect(page.locator('.slide-thumb')).toHaveCount(1);
+  await page.keyboard.press('1');
+  await page.keyboard.press('s');
+  await expect(page.locator('.slide-thumb')).toHaveCount(2);
+  await page.getByRole('button', { name: 'Export' }).click();
+  const [download] = await Promise.all([
+    page.waitForEvent('download', { timeout: 60_000 }),
+    page.getByRole('button', { name: /PDF/ }).click(),
+  ]);
+  const path = await download.path();
+  const { readFileSync } = await import('node:fs');
+  const bytes = readFileSync(path!);
+  expect(bytes.subarray(0, 5).toString()).toBe('%PDF-');
+  expect(bytes.length).toBeGreaterThan(10_000);
+  expect(errors).toEqual([]);
+});

@@ -1,3 +1,6 @@
+import { useLayoutEffect, useRef } from 'react';
+import { anchorRows } from '../engine/encodings';
+import { getEngine } from '../engine/instance';
 import { formatAxisValue } from '../engine/layouts/common';
 import { useStore } from '../state/store';
 import { toggleCategory } from './actions';
@@ -6,10 +9,40 @@ export function Legend() {
   const info = useStore((s) => s.layoutInfo);
   const table = useStore((s) => s.table);
   const filters = useStore((s) => s.view.filters);
+  const annotations = useStore((s) => s.view.annotations);
   const presenting = useStore((s) => s.mode === 'present');
+  const ref = useRef<HTMLElement>(null);
+
+  // Tell the engine where the legend is so annotation notes can steer clear of it.
+  useLayoutEffect(() => {
+    const engine = getEngine();
+    const el = ref.current;
+    if (!engine) return;
+    if (!el) {
+      engine.setAvoidRects([]);
+      return;
+    }
+    const report = () => {
+      const stage = engine.container.getBoundingClientRect();
+      const r = el.getBoundingClientRect();
+      engine.setAvoidRects([{ x: r.left - stage.left, y: r.top - stage.top, w: r.width, h: r.height }]);
+    };
+    report();
+    const ro = new ResizeObserver(report);
+    ro.observe(el);
+    ro.observe(engine.container);
+    return () => {
+      ro.disconnect();
+      engine.setAvoidRects([]);
+    };
+  });
+
   if (!info || !table) return null;
   const { colorLegend: color, sizeLegend: size } = info;
-  if (color.kind === 'none' && !size) return null;
+  const highlighted = new Set<number>();
+  for (const a of annotations)
+    if (a.highlight) for (const r of anchorRows(table, a.anchor)) highlighted.add(r);
+  if (color.kind === 'none' && !size && !highlighted.size) return null;
 
   const excluded = new Set<string>();
   if (color.kind === 'categorical') {
@@ -18,7 +51,13 @@ export function Legend() {
   }
 
   return (
-    <aside className="legend" aria-label="Legend">
+    <aside className="legend" aria-label="Legend" ref={ref}>
+      {highlighted.size > 0 && (
+        <div className="legend-chip" title="An annotation highlights these bubbles; the rest are greyed out">
+          <i /> Highlighting {highlighted.size.toLocaleString()}{' '}
+          {highlighted.size === 1 ? 'bubble' : 'bubbles'}
+        </div>
+      )}
       {color.kind === 'categorical' && (
         <div>
           <div className="legend-title">{color.field}</div>

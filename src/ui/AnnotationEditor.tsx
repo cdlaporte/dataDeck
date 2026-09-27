@@ -1,5 +1,6 @@
 import { useEffect, useRef } from 'react';
 import { getEngine } from '../engine/instance';
+import { CATEGORICAL, readThemeColors } from '../engine/palette';
 import { removeAnnotation, updateAnnotation, useStore } from '../state/store';
 import { IconTrash } from './icons';
 
@@ -7,6 +8,7 @@ export function AnnotationEditor() {
   const id = useStore((s) => s.editingAnnotationId);
   const annotation = useStore((s) => s.view.annotations.find((a) => a.id === s.editingAnnotationId));
   const titleRef = useRef<HTMLInputElement>(null);
+  const palette = CATEGORICAL[readThemeColors().name];
 
   useEffect(() => {
     if (id) requestAnimationFrame(() => titleRef.current?.select());
@@ -21,7 +23,7 @@ export function AnnotationEditor() {
   let top = pos.y - 20;
   if (stage) {
     left = Math.max(12, Math.min(stage.width - W - 12, left));
-    top = Math.max(12, Math.min(stage.height - 220, top));
+    top = Math.max(12, Math.min(stage.height - 300, top));
   }
 
   return (
@@ -52,6 +54,43 @@ export function AnnotationEditor() {
         aria-label="Annotation text"
         onChange={(e) => updateAnnotation(id, { text: e.target.value })}
       />
+      {annotation.anchor.kind !== 'free' && (
+        <>
+          <label className="switch-row" style={{ marginTop: 2 }}>
+            <input
+              type="checkbox"
+              role="switch"
+              aria-label="Highlight these points"
+              checked={!!annotation.highlight}
+              onChange={(e) => updateAnnotation(id, { highlight: e.target.checked })}
+            />
+            <span>Highlight these points, grey out the rest</span>
+          </label>
+          {annotation.highlight && (
+            <div className="swatch-row" role="group" aria-label="Highlight color">
+              <button
+                type="button"
+                className="btn small swatch-btn"
+                aria-pressed={!annotation.highlightColor}
+                onClick={() => updateAnnotation(id, { highlightColor: null })}
+              >
+                Keep colors
+              </button>
+              {palette.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  className="swatch-pick"
+                  style={{ background: c }}
+                  aria-label={`Highlight in ${c}`}
+                  aria-pressed={annotation.highlightColor === c}
+                  onClick={() => updateAnnotation(id, { highlightColor: c })}
+                />
+              ))}
+            </div>
+          )}
+        </>
+      )}
       <div className="row">
         <button type="button" className="btn ghost small danger" onClick={() => removeAnnotation(id)}>
           <IconTrash size={14} /> Delete

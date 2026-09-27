@@ -68,8 +68,8 @@ export interface TsneParams {
 
 export type LayoutSpec =
   | { mode: 'cluster' }
-  | { mode: '1d'; field: string }
-  | { mode: '2d'; x: string; y: string }
+  | { mode: '1d'; field: string; log?: boolean }
+  | { mode: '2d'; x: string; y: string; logX?: boolean; logY?: boolean }
   | {
       mode: 'tsne';
       fields: string[];
@@ -107,6 +107,10 @@ export interface Annotation {
   dy: number;
   title: string;
   text: string;
+  /** Colour only the annotated bubbles and grey out the rest. */
+  highlight?: boolean;
+  /** Paint highlighted bubbles one colour (null/undefined = keep their encoded colours). */
+  highlightColor?: string | null;
 }
 
 /** Zoom state, stored relative to the viewport: (cx, cy) is the normalised
@@ -125,6 +129,8 @@ export interface ViewState {
   camera: CameraState;
   title: string;
   caption: string;
+  /** Collisions off: bubbles sit exactly on their values and may overlap. */
+  overlap?: boolean;
 }
 
 export interface Slide {

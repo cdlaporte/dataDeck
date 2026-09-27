@@ -202,6 +202,42 @@ export const IconLasso = (p: IconProps) => (
   </Icon>
 );
 
+export const IconUndo = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M9 14 4 9l5-5" />
+    <path d="M4 9h10.5a5.5 5.5 0 0 1 0 11H11" />
+  </Icon>
+);
+
+export const IconRedo = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="m15 14 5-5-5-5" />
+    <path d="M20 9H9.5a5.5 5.5 0 0 0 0 11H13" />
+  </Icon>
+);
+
+export const IconSearch = (p: IconProps) => (
+  <Icon {...p}>
+    <circle cx="11" cy="11" r="7" />
+    <path d="m20 20-3.5-3.5" />
+  </Icon>
+);
+
+export const IconImage = (p: IconProps) => (
+  <Icon {...p}>
+    <rect x="3" y="4" width="18" height="16" rx="2" />
+    <circle cx="9" cy="10" r="2" />
+    <path d="m21 16-5-5-9 9" />
+  </Icon>
+);
+
+export const IconFile = (p: IconProps) => (
+  <Icon {...p}>
+    <path d="M6 3h8l4 4v14H6z" />
+    <path d="M14 3v4h4" />
+  </Icon>
+);
+
 export const IconFilter = (p: IconProps) => (
   <Icon {...p}>
     <path d="M4 5h16l-6 7v6l-4 2v-8z" />

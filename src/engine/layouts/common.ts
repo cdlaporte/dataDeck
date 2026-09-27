@@ -1,9 +1,13 @@
 import {
   scaleLinear,
+  scaleLog,
   scalePoint,
+  scaleSymlog,
   scaleUtc,
   type ScaleLinear,
+  type ScaleLogarithmic,
   type ScalePoint,
+  type ScaleSymLog,
   type ScaleTime,
 } from 'd3-scale';
 import { formatDate, formatNumber } from '../../data/format';
@@ -130,13 +134,28 @@ export function emptyResult(n: number): LayoutResult {
 // ---------------------------------------------------------------------------
 // Continuous scales
 
-export type ContinuousScale = ScaleLinear<number, number> | ScaleTime<number, number>;
+export type ContinuousScale =
+  | ScaleLinear<number, number>
+  | ScaleTime<number, number>
+  | ScaleLogarithmic<number, number>
+  | ScaleSymLog<number, number>;
 
+const isLogScale = (s: ContinuousScale): s is ScaleLogarithmic<number, number> =>
+  typeof (s as ScaleLogarithmic<number, number>).base === 'function';
+const isSymlogScale = (s: ContinuousScale): s is ScaleSymLog<number, number> =>
+  typeof (s as ScaleSymLog<number, number>).constant === 'function';
+
+/**
+ * Scale for a numeric/date field over the visible rows. With `log`, quantitative
+ * fields use a log scale when every value is positive, otherwise a symmetric-log
+ * scale (handles zeros and negatives, e.g. box-office grosses of 0).
+ */
 export function continuousScale(
   table: DataTable,
   meta: FieldMeta,
   mask: Uint8Array,
   range: [number, number],
+  log = false,
 ): ContinuousScale {
   const col = table.columns[meta.name];
   let lo = Infinity;
@@ -160,7 +179,43 @@ export function continuousScale(
       .domain([new Date(lo), new Date(hi)])
       .range(range)
       .nice();
+  if (log && meta.type === 'quantitative') {
+    if (lo > 0) return scaleLog().domain([lo, hi]).range(range).nice();
+    return scaleSymlog().constant(1).domain([lo, hi]).range(range).nice();
+  }
   return scaleLinear().domain([lo, hi]).range(range).nice();
+}
+
+/** Tick values for log scales: powers of ten (plus 2× and 5× when the range spans few decades). */
+export function logTicks(lo: number, hi: number, symmetric: boolean, max = 9): number[] {
+  const out = new Set<number>();
+  const decades = (a: number, b: number, sign: 1 | -1) => {
+    // Positive magnitudes in [a, b], a > 0.
+    const k0 = Math.floor(Math.log10(a));
+    const k1 = Math.ceil(Math.log10(b));
+    const powers: number[] = [];
+    for (let k = k0; k <= k1; k++) powers.push(10 ** k);
+    const inRange = (v: number) => v >= a * (1 - 1e-9) && v <= b * (1 + 1e-9);
+    let values = powers.filter(inRange);
+    if (values.length < 3) {
+      values = powers.flatMap((p) => [p, 2 * p, 5 * p]).filter(inRange);
+    }
+    for (const v of values) out.add(sign * v);
+  };
+  if (symmetric) {
+    if (lo <= 0 && hi >= 0) out.add(0);
+    if (hi >= 1) decades(1, hi, 1);
+    if (lo <= -1) decades(1, -lo, -1);
+  } else if (lo > 0) {
+    decades(lo, hi, 1);
+  }
+  let ticks = [...out].sort((a, b) => a - b);
+  // Thin evenly (keeping the ends) when there are too many.
+  if (ticks.length > max) {
+    const step = Math.ceil(ticks.length / max);
+    ticks = ticks.filter((_, i) => i % step === 0 || i === ticks.length - 1);
+  }
+  return ticks;
 }
 
 export function continuousAxis(
@@ -177,6 +232,11 @@ export function continuousAxis(
     const s = scale as ScaleTime<number, number>;
     const fmt = s.tickFormat(count);
     ticks = s.ticks(count).map((d) => ({ pos: s(d), label: fmt(d) }));
+  } else if (isLogScale(scale) || isSymlogScale(scale)) {
+    const [d0, d1] = scale.domain() as [number, number];
+    const values = logTicks(Math.min(d0, d1), Math.max(d0, d1), isSymlogScale(scale), Math.max(4, count + 2));
+    ticks = values.map((v) => ({ pos: scale(v), label: formatNumber(v) }));
+    return { orient, title: `${meta.name} (log)`, ticks, cross, span, grid: true };
   } else {
     const s = scale as ScaleLinear<number, number>;
     ticks = s.ticks(count).map((v) => ({ pos: s(v), label: formatNumber(v) }));

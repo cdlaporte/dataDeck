@@ -1,5 +1,5 @@
 import { isNumericType } from '../../data/profile';
-import type { FieldMeta, LayoutSpec } from '../../state/types';
+import type { DataTable, FieldMeta, LayoutSpec } from '../../state/types';
 import {
   bandAxis,
   bandScale,
@@ -22,6 +22,18 @@ import {
 
 export type { LayoutResult, AxisGuide, GroupInfo, Viewport } from './common';
 
+/** Whether "let bubbles overlap" makes sense: layouts with at least one continuous position. */
+export function overlapAllowed(spec: LayoutSpec, table: DataTable): boolean {
+  const numeric = (f: string) => {
+    const t = table.fieldByName[f]?.type;
+    return !!t && isNumericType(t);
+  };
+  if (spec.mode === 'tsne') return true;
+  if (spec.mode === '1d') return numeric(spec.field);
+  if (spec.mode === '2d') return numeric(spec.x) || numeric(spec.y);
+  return false;
+}
+
 /** Computes per-row target positions and guides for a layout spec. Pure. */
 export function computeLayout(
   spec: LayoutSpec,
@@ -35,13 +47,13 @@ export function computeLayout(
     case '1d': {
       const meta = table.fieldByName[spec.field];
       if (!meta || meta.type === 'text') return clusterLayout(input);
-      return isNumericType(meta.type) ? continuous1D(input, meta) : categorical1D(input, meta);
+      return isNumericType(meta.type) ? continuous1D(input, meta, !!spec.log) : categorical1D(input, meta);
     }
     case '2d': {
       const x = table.fieldByName[spec.x];
       const y = table.fieldByName[spec.y];
       if (!x || !y || x.type === 'text' || y.type === 'text') return clusterLayout(input);
-      return layout2D(input, x, y);
+      return layout2D(input, x, y, !!spec.logX, !!spec.logY);
     }
     case 'tsne':
       return tsneLayout(input, tsneCoords);
@@ -81,7 +93,7 @@ function andMask(a: Uint8Array, b: Uint8Array): Uint8Array {
   return a.map((v, i) => v & b[i]);
 }
 
-function continuous1D(input: LayoutInput, meta: FieldMeta): LayoutResult {
+function continuous1D(input: LayoutInput, meta: FieldMeta, log: boolean): LayoutResult {
   const { table, visible, viewport, radii } = input;
   const n = table.rowCount;
   const res = emptyResult(n);
@@ -90,7 +102,7 @@ function continuous1D(input: LayoutInput, meta: FieldMeta): LayoutResult {
   res.valid = numericValidity(input, meta);
   const mask = andMask(visible, res.valid);
   const rect = plotRect(viewport, { xAxis: true }, input.legend);
-  const x = continuousScale(table, meta, mask, [rect.left, rect.right]);
+  const x = continuousScale(table, meta, mask, [rect.left, rect.right], log);
   for (let i = 0; i < n; i++) {
     if (!res.valid[i]) continue;
     res.tx[i] = Math.max(rect.left, Math.min(rect.right, scaleValue(x, col.values[i])));
@@ -136,7 +148,13 @@ function categorical1D(input: LayoutInput, meta: FieldMeta): LayoutResult {
   return res;
 }
 
-function layout2D(input: LayoutInput, xm: FieldMeta, ym: FieldMeta): LayoutResult {
+function layout2D(
+  input: LayoutInput,
+  xm: FieldMeta,
+  ym: FieldMeta,
+  logX: boolean,
+  logY: boolean,
+): LayoutResult {
   const { table, visible, viewport, radii } = input;
   const n = table.rowCount;
   const res = emptyResult(n);
@@ -158,7 +176,7 @@ function layout2D(input: LayoutInput, xm: FieldMeta, ym: FieldMeta): LayoutResul
     const cross = orient === 'bottom' ? rect.bottom : rect.left;
     const span: [number, number] = orient === 'bottom' ? [rect.top, rect.bottom] : [rect.left, rect.right];
     if (cont) {
-      const scale = continuousScale(table, meta, mask, range);
+      const scale = continuousScale(table, meta, mask, range, orient === 'bottom' ? logX : logY);
       const col = table.columns[meta.name];
       const lo = Math.min(...range);
       const hi = Math.max(...range);

@@ -4,10 +4,21 @@ import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } fro
 import { computeVisibility } from '../data/filters';
 import { Overlay, type AnnotationPlacement, type GroupLabel } from '../overlay/Overlay';
 import type { AnnotationAnchor, CameraState, DataTable, LayoutSpec, ViewState } from '../state/types';
-import { baseRadius, computeColors, computeSizes, type ColorLegend, type SizeLegend } from './encodings';
-import { computeLayout, type LayoutResult } from './layouts';
+import {
+  GREYED_ALPHA,
+  anchorRows,
+  applyHighlights,
+  baseRadius,
+  computeColors,
+  computeSizes,
+  highlightSignature,
+  type ColorLegend,
+  type SizeLegend,
+} from './encodings';
+import { computeLayout, overlapAllowed, type LayoutResult } from './layouts';
 import { plotRect } from './layouts/common';
 import type { ThemeColors } from './palette';
+import { drawLegend } from './drawLegend';
 import { Renderer, type Transform } from './Renderer';
 import { Simulation } from './Simulation';
 import { buildTsneInput } from './tsne';
@@ -99,6 +110,7 @@ export class Engine {
   private theme: ThemeColors | null = null;
   private tool: Tool = 'select';
   private layout: LayoutResult | null = null;
+  private layoutInfo: LayoutInfo | null = null;
 
   // Per-row state.
   private visible = new Uint8Array(0);
@@ -111,6 +123,12 @@ export class Engine {
   /** Base opacity per row from the last recompute, before selection dimming. */
   private baseAlpha = new Float32Array(0);
   private selected: Uint8Array | null = null;
+  /** Colours from the colour encoding, before highlighting (RGB, 3 per row). */
+  private encodedRGB: Float32Array = new Float32Array(0);
+  /** Rows greyed out by a highlighting annotation (null when none highlights). */
+  private greyed: Uint8Array | null = null;
+  /** Instance draw order (back to front). */
+  private drawOrder = new Int32Array(0);
 
   private tree: Quadtree<number> | null = null;
   private treeFrame = -1;
@@ -205,6 +223,11 @@ export class Engine {
     this.sim.setMotion(this.motion);
   }
 
+  /** Rings one bubble as if hovered (used by Find); -1 clears. */
+  pulseRow(row: number) {
+    this.hovered = row;
+  }
+
   /** Highlights the given rows (others are dimmed); an empty list clears the selection. */
   setSelection(rows: readonly number[]) {
     const n = this.table?.rowCount ?? 0;
@@ -253,6 +276,8 @@ export class Engine {
     this.view = view;
     // Title / caption / annotation / camera edits don't touch the layout.
     if (!prev || !sameLayoutInputs(prev, view)) this.recompute(true);
+    else if (highlightSignature(prev.annotations) !== highlightSignature(view.annotations))
+      this.applyColors();
     const current = this.cameraState();
     const c = view.camera;
     if (
@@ -310,35 +335,58 @@ export class Engine {
     return p ? { x: p.x + p.annotation.dx, y: p.y + p.annotation.dy } : null;
   }
 
-  async captureThumbnail(title = '', width = 480): Promise<string | null> {
+  /**
+   * Renders the current view (bubbles, overlay, and optionally title, caption and
+   * legend) to a canvas `scale`× the stage's CSS size.
+   */
+  async captureImage(
+    opts: { scale?: number; title?: string; caption?: string; legend?: boolean } = {},
+  ): Promise<HTMLCanvasElement | null> {
     if (!this.table || !this.theme) return null;
-    const scale = width / this.width;
-    const height = Math.round(this.height * scale);
+    const s = opts.scale ?? 1;
+    const width = Math.round(this.width * s);
+    const height = Math.round(this.height * s);
     const out = document.createElement('canvas');
     out.width = width;
     out.height = height;
     const ctx = out.getContext('2d');
     if (!ctx) return null;
+    ctx.fillStyle = this.theme.surface;
+    ctx.fillRect(0, 0, width, height);
     this.render();
     ctx.drawImage(this.canvas, 0, 0, width, height);
     try {
       const clone = this.svg.cloneNode(true) as SVGSVGElement;
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      clone.querySelectorAll('.hit').forEach((n) => n.remove());
+      clone.querySelectorAll('.hit, .lasso').forEach((n) => n.remove());
       const xml = new XMLSerializer().serializeToString(clone);
       const img = new Image();
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
       await img.decode();
       ctx.drawImage(img, 0, 0, width, height);
     } catch {
-      // Overlay is decorative in thumbnails; ignore serialisation failures.
+      // The overlay is decorative in exports; ignore serialisation failures.
     }
-    if (title) {
+    const font = 'Inter, ui-sans-serif, system-ui, -apple-system, sans-serif';
+    const maxW = (this.width - 300) * s;
+    if (opts.title) {
       ctx.fillStyle = this.theme.textPrimary;
-      ctx.font = `600 ${Math.round(22 * scale * 1.4)}px Inter, system-ui, sans-serif`;
-      ctx.fillText(title, 40 * scale, 58 * scale, width - 60 * scale);
+      ctx.font = `700 ${22 * s}px ${font}`;
+      ctx.fillText(opts.title, 28 * s, 52 * s, maxW);
     }
-    return out.toDataURL('image/jpeg', 0.82);
+    if (opts.caption) {
+      ctx.fillStyle = this.theme.textSecondary;
+      ctx.font = `${14 * s}px ${font}`;
+      ctx.fillText(opts.caption, 28 * s, 78 * s, maxW);
+    }
+    if (opts.legend && this.layoutInfo)
+      drawLegend(ctx, this.layoutInfo, this.table, this.theme, this.width - 20, 24, s);
+    return out;
+  }
+
+  async captureThumbnail(title = '', width = 480): Promise<string | null> {
+    const canvas = await this.captureImage({ scale: width / this.width, title });
+    return canvas ? canvas.toDataURL('image/jpeg', 0.82) : null;
   }
 
   /** Fast-forwards the simulation and all tweens (used by tests and screenshots). */
@@ -347,6 +395,7 @@ export class Engine {
     this.clock = new TickClock();
     this.displayR.set(this.targetR);
     this.displayRGBA.set(this.targetRGBA);
+    if (this.cameraTween) this.applyCamera(this.cameraTween.to);
     this.cameraTween = null;
     this.render();
   }
@@ -405,9 +454,15 @@ export class Engine {
     let visibleCount = 0;
     this.maxR = 1;
     const collideR = new Float32Array(n);
-    const pad = layout.collide < 1 ? 0 : 0.8;
+    // "Let bubbles overlap": no collisions, and a firm pull so bubbles sit exactly on their values.
+    const overlap = !!view.overlap && overlapAllowed(view.layout, table);
+    const pad = overlap || layout.collide < 1 ? 0 : 0.8;
     // Slightly soft collisions settle without jitter while still packing cleanly.
-    const collide = layout.collide >= 1 ? 0.85 : layout.collide;
+    const collide = overlap ? 0 : layout.collide >= 1 ? 0.85 : layout.collide;
+    if (overlap) {
+      layout.strengthX = Math.max(layout.strengthX, 0.3);
+      layout.strengthY = Math.max(layout.strengthY, 0.3);
+    }
     for (let i = 0; i < n; i++) {
       const vis = filterMask[i] && layout.valid[i] ? 1 : 0;
       this.visible[i] = vis;
@@ -421,36 +476,68 @@ export class Engine {
     // Hidden rows with no target keep their spot; new rows appear where they belong.
     this.sim.setTargets(layout.tx, layout.ty, layout.strengthX, layout.strengthY, transitionMs);
     this.sim.setCollision(collideR, collide);
+    this.sim.setDensity(visibleCount);
     if (reheat) this.sim.reheat(transitionMs !== undefined ? REHEAT_TSNE : REHEAT_VIEW);
 
     const colors = computeColors(table, view.encoding, this.theme.name);
-    const alpha = layout.collide < 0.5 ? 0.85 : 1;
-    for (let i = 0; i < n; i++) {
-      this.targetRGBA[i * 4] = colors.rgb[i * 3];
-      this.targetRGBA[i * 4 + 1] = colors.rgb[i * 3 + 1];
-      this.targetRGBA[i * 4 + 2] = colors.rgb[i * 3 + 2];
-      this.baseAlpha[i] = this.visible[i] ? alpha : 0;
-    }
-    this.applyAlphaTargets();
+    this.encodedRGB = colors.rgb;
+    const alpha = overlap ? 0.75 : layout.collide < 0.5 ? 0.85 : 1;
+    for (let i = 0; i < n; i++) this.baseAlpha[i] = this.visible[i] ? alpha : 0;
+    this.applyColors();
 
     this.overlay.setAxes([layout.xAxis, layout.yAxis].filter((a) => !!a));
-    this.callbacks.onLayoutInfo?.({
+    this.layoutInfo = {
       message: layout.message,
       visibleCount,
       totalCount: n,
       colorLegend: colors.legend,
       sizeLegend,
       baseRadiusPx: base * layout.radiusScale,
-    });
+    };
+    this.callbacks.onLayoutInfo?.(this.layoutInfo);
+  }
+
+  /** Encoded colours + annotation highlighting → target colours. */
+  private applyColors() {
+    const table = this.table;
+    if (!table || !this.view || !this.theme) return;
+    const { rgb, greyed } = applyHighlights(table, this.view.annotations, this.encodedRGB, this.theme.name);
+    this.greyed = greyed;
+    for (let i = 0; i < table.rowCount; i++) {
+      this.targetRGBA[i * 4] = rgb[i * 3];
+      this.targetRGBA[i * 4 + 1] = rgb[i * 3 + 1];
+      this.targetRGBA[i * 4 + 2] = rgb[i * 3 + 2];
+    }
+    this.applyAlphaTargets();
   }
 
   private applyAlphaTargets() {
     const sel = this.selected;
-    for (let i = 0; i < this.baseAlpha.length; i++) {
-      const a = this.baseAlpha[i];
-      this.targetRGBA[i * 4 + 3] = sel && !sel[i] ? Math.min(a, DIMMED_ALPHA) : a;
+    const greyed = this.greyed;
+    const n = this.baseAlpha.length;
+    const back: number[] = [];
+    const front: number[] = [];
+    for (let i = 0; i < n; i++) {
+      let a = this.baseAlpha[i];
+      let dimmed = false;
+      if (greyed?.[i]) {
+        a = Math.min(a, GREYED_ALPHA);
+        dimmed = true;
+      }
+      if (sel && !sel[i]) {
+        a = Math.min(a, DIMMED_ALPHA);
+        dimmed = true;
+      }
+      this.targetRGBA[i * 4 + 3] = a;
+      (dimmed ? back : front).push(i);
     }
+    this.drawOrder = Int32Array.from(back.concat(front));
     this.animating = true;
+  }
+
+  /** Screen rects (stage coordinates) that annotation notes should avoid. */
+  setAvoidRects(rects: { x: number; y: number; w: number; h: number }[]) {
+    this.overlay.avoid = rects;
   }
 
   // ---------------------------------------------------------------------------
@@ -834,13 +921,20 @@ export class Engine {
     const color = r.color.array as Float32Array;
     const hi = r.highlight.array as Float32Array;
     const nodes = this.sim.nodes;
-    for (let i = 0; i < n; i++) {
-      offset[i * 2] = nodes[i].x;
-      offset[i * 2 + 1] = nodes[i].y;
-      hi[i] = i === this.hovered ? 1 : 0;
+    // Instances draw in `drawOrder`, so emphasised bubbles (selected /
+    // highlighted) sit on top of dimmed ones.
+    const order = this.drawOrder.length === n ? this.drawOrder : null;
+    for (let k = 0; k < n; k++) {
+      const i = order ? order[k] : k;
+      offset[k * 2] = nodes[i].x;
+      offset[k * 2 + 1] = nodes[i].y;
+      hi[k] = i === this.hovered ? 1 : 0;
+      radius[k] = this.displayR[i];
+      color[k * 4] = this.displayRGBA[i * 4];
+      color[k * 4 + 1] = this.displayRGBA[i * 4 + 1];
+      color[k * 4 + 2] = this.displayRGBA[i * 4 + 2];
+      color[k * 4 + 3] = this.displayRGBA[i * 4 + 3];
     }
-    radius.set(this.displayR.subarray(0, n));
-    color.set(this.displayRGBA.subarray(0, n * 4));
     r.render(this.transform);
     this.overlay.update(
       this.transform,
@@ -920,16 +1014,7 @@ export class Engine {
       };
     }
     if (anchor.kind === 'group' || anchor.kind === 'rows') {
-      let rows: Iterable<number>;
-      if (anchor.kind === 'rows') rows = anchor.rows;
-      else {
-        const col = table.columns[anchor.field];
-        const list: number[] = [];
-        if (col?.kind === 'string')
-          for (let i = 0; i < nodes.length; i++) if ((col.values[i] ?? '') === anchor.value) list.push(i);
-        rows = list;
-      }
-      const circle = this.enclosingCircle(rows);
+      const circle = this.enclosingCircle(anchorRows(table, anchor));
       if (!circle) return hidden;
       return { x: circle.x * t.k + t.x, y: circle.y * t.k + t.y, r: circle.r * t.k + 6, visible: true };
     }
@@ -946,7 +1031,9 @@ export class Engine {
 
 /** Views that differ only in annotations / camera / text don't need a reheat. */
 function sameLayoutInputs(a: ViewState, b: ViewState): boolean {
-  return a.layout === b.layout && a.encoding === b.encoding && a.filters === b.filters;
+  return (
+    a.layout === b.layout && a.encoding === b.encoding && a.filters === b.filters && a.overlap === b.overlap
+  );
 }
 
 function maskHash(mask: Uint8Array): string {

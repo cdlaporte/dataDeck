@@ -12,6 +12,7 @@ import {
 } from './state/store';
 import { DEFAULT_CAMERA, type LayoutMode } from './state/types';
 import { snapshot, updateActiveSlide } from './ui/actions';
+import { redo, undo } from './state/history';
 import { DataPanel } from './ui/DataPanel';
 import { IconX } from './ui/icons';
 import { SlideStrip } from './ui/SlideStrip';
@@ -34,6 +35,21 @@ function isTyping(e: KeyboardEvent) {
 function useShortcuts() {
   useEffect(() => {
     const onKey = (e: KeyboardEvent) => {
+      if ((e.metaKey || e.ctrlKey) && !e.altKey) {
+        const s = useStore.getState();
+        if (!s.table || s.mode !== 'edit') return;
+        const k = e.key.toLowerCase();
+        if (k === 'f') {
+          e.preventDefault();
+          useStore.setState({ findOpen: true });
+        } else if (!isTyping(e) && (k === 'z' || k === 'y')) {
+          // Text fields keep their own native undo.
+          e.preventDefault();
+          if (k === 'y' || e.shiftKey) redo();
+          else undo();
+        }
+        return;
+      }
       if (e.metaKey || e.ctrlKey || e.altKey || isTyping(e)) return;
       const s = useStore.getState();
       if (!s.table) return;

@@ -55,10 +55,14 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
      - Perplexity, learning rate and iteration count are adjustable, and you can pause or re-run.
      - Numeric fields are z-scored; categorical fields are one-hot encoded.
    - **Colour** by any field (categorical palette or sequential ramp) and **size** by a quantitative field.
+   - **Log** toggles beside quantitative axis fields spread out skewed data. Fields with zeros or negatives use a symmetric log.
+   - **Let bubbles overlap** turns collisions off, so each bubble sits exactly on its value (1D numeric, 2D and t-SNE).
+   - **Drag a field** from the Data panel onto the stage. Drop it on the **X axis** or **Y axis** zone (switching to 2D if needed), on **Color**, or in the middle to **show it on its own**.
 3. **Annotate.**
    - Press **A**, or use the note tool, then click a bubble, a group label or empty space.
    - Notes are anchored to a data point, a category group or a canvas position, so they follow the data as it moves.
    - Drag a note to reposition it; double-click it to edit.
+   - **Highlight these points** in the note editor keeps the annotated bubbles in colour (or a colour you pick) and greys out everything else. This also appears in presentations and exports.
 4. **Select with a lasso.**
    - Press **L** (or use the lasso tool), or hold **Shift** and drag in the normal tool, to draw around bubbles. Shift adds to the selection.
    - The selection bar lets you:
@@ -77,8 +81,14 @@ You can also:
 - hover a bubble for its details
 - click a legend entry to hide or show that category
 
-Decks autosave to IndexedDB. **Export** downloads a self-contained `.datadeck.json`
-file with the dataset, field types and slides; **Open** loads one back, or a new CSV/TSV.
+Press **⌘/Ctrl+F** to find a row by name (or any text or category value). Enter selects it, and Shift+Enter selects every match. From there you can keep it, exclude it, or annotate and highlight it.
+Undo and redo (**⌘/Ctrl+Z**, **⇧⌘/Ctrl+Shift+Z**) cover view edits, filters, annotations and slides.
+
+Decks autosave to IndexedDB. **Export** offers three formats:
+
+- a self-contained `.datadeck.json` file (dataset, field types and slides); **Open** loads one back, or a new CSV/TSV
+- a **PDF** with one page per slide
+- a **PNG** of the current view
 
 ### Keyboard shortcuts
 
@@ -89,6 +99,8 @@ file with the dataset, field types and slides; **Open** loads one back, or a new
 | `P`           | Present from the selected slide         |
 | `A` / `V`     | Annotate tool / select tool             |
 | `L`           | Lasso tool (or Shift-drag anytime)      |
+| `⌘/Ctrl+F`    | Find a data point                       |
+| `⌘/Ctrl+Z`    | Undo (add Shift to redo)                |
 | `Esc`         | Clear selection, back to select tool    |
 | `1`–`4`       | Cluster / 1D / 2D / t-SNE               |
 | `0`           | Reset zoom                              |
@@ -123,6 +135,10 @@ Key ideas:
   120 Hz display doesn't double the speed. Targets glide from the old layout to the new one,
   a speed limit prevents fling, and alpha decays to a small resting value so groups come
   to rest instead of churning.
+- **Calm dense clumps.** Collisions move positions directly (position-based dynamics),
+  so they add no bounce energy. Bubbles inside a group's packed radius are not pulled
+  inward, so the interior isn't squeezed. Collision passes scale with the number of
+  visible bubbles. See `src/engine/jitter.test.ts` for the measured budget.
 - **ViewState is the slide.** Layout, encodings, filters, annotations, camera and title
   are plain JSON. A snapshot is a deep copy, plus the final t-SNE embedding so
   presentations replay without recomputing.

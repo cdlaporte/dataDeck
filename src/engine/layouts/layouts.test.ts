@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest';
 import { parseDelimited } from '../../data/parse';
 import { buildTable } from '../../data/profile';
 import { computeLayout } from './index';
-import { fitClusters, gridFor, groupRows, plotRect } from './common';
+import { fitClusters, gridFor, groupRows, logTicks, plotRect } from './common';
 
 const csv = [
   'name,group,value,when',
@@ -127,5 +127,44 @@ describe('fitClusters', () => {
         50,
       ),
     ).toBeCloseTo(1);
+  });
+});
+
+describe('log scales', () => {
+  const logCsv = ['name,gross,score', 'a,0,1', 'b,10,10', 'c,1000,100', 'd,100000,1000', 'e,5,10000'].join(
+    '\n',
+  );
+  const t = buildTable(parseDelimited(logCsv, 'log'));
+  const all5 = new Uint8Array(t.rowCount).fill(1);
+  const inp = { table: t, visible: all5, viewport, radii: new Float32Array(t.rowCount).fill(4) };
+
+  it('uses a log scale for positive fields: equal ratios get equal spacing', () => {
+    const res = computeLayout({ mode: '1d', field: 'score', log: true }, inp, null);
+    const xs = [0, 1, 2, 3, 4].map((i) => res.tx[i]);
+    const gaps = xs.slice(1).map((x, i) => x - xs[i]);
+    for (const g of gaps) expect(g).toBeCloseTo(gaps[0], 0);
+    expect(res.xAxis?.title).toBe('score (log)');
+    expect(res.xAxis?.ticks.map((tk) => tk.label)).toEqual(['1', '10', '100', '1,000', '10,000']);
+  });
+
+  it('falls back to symlog when zeros are present, keeping order', () => {
+    const res = computeLayout({ mode: '1d', field: 'gross', log: true }, inp, null);
+    const xs = [0, 1, 2, 3].map((i) => res.tx[i]);
+    for (let i = 1; i < xs.length; i++) expect(xs[i]).toBeGreaterThan(xs[i - 1]);
+    expect(res.xAxis?.ticks[0].label).toBe('0');
+    // Symlog compresses: 10 → 1,000 and 1,000 → 100,000 get similar spans.
+    expect(xs[2] - xs[1]).toBeGreaterThan(0.6 * (xs[3] - xs[2]));
+  });
+
+  it('applies per-axis in 2D', () => {
+    const res = computeLayout({ mode: '2d', x: 'score', y: 'gross', logX: true }, inp, null);
+    expect(res.xAxis?.title).toBe('score (log)');
+    expect(res.yAxis?.title).toBe('gross');
+  });
+
+  it('generates power-of-ten ticks', () => {
+    expect(logTicks(1, 1000, false)).toEqual([1, 10, 100, 1000]);
+    expect(logTicks(2, 30, false)).toEqual([2, 5, 10, 20]);
+    expect(logTicks(-100, 100, true)).toEqual([-100, -10, -1, 0, 1, 10, 100]);
   });
 });

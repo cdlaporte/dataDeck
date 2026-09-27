@@ -14,6 +14,8 @@ import {
   useStore,
 } from '../state/store';
 import { AnnotationEditor } from './AnnotationEditor';
+import { DropZones } from './DropZones';
+import { FindBox } from './FindBox';
 import { SelectionBar } from './SelectionBar';
 import { Legend } from './Legend';
 import { PresentControls } from './PresentControls';
@@ -34,6 +36,7 @@ export function Stage() {
   const caption = useStore((s) => s.view.caption);
   const info = useStore((s) => s.layoutInfo);
   const hasSelection = useStore((s) => s.selection.length > 0);
+  const exporting = useStore((s) => s.exporting);
 
   useEffect(() => {
     const el = ref.current!;
@@ -130,6 +133,13 @@ export function Stage() {
         <div className="hint">Drag to draw around bubbles · Shift adds · Esc to finish</div>
       )}
       {!presenting && <SelectionBar />}
+      {!presenting && <DropZones />}
+      {!presenting && <FindBox />}
+      {exporting && (
+        <div className="export-overlay" role="status">
+          <div>{exporting}</div>
+        </div>
+      )}
       {info && (
         <div className="stage-status" aria-live="polite">
           <span>

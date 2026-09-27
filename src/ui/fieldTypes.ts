@@ -13,3 +13,6 @@ export const TYPE_GLYPH: Record<FieldType, string> = {
   date: 'D',
   text: 'T',
 };
+
+/** Drag-and-drop payload type for fields dragged from the Data panel. */
+export const FIELD_MIME = 'text/x-datadeck-field';

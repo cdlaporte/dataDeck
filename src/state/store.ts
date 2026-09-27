@@ -3,6 +3,7 @@ import { makeId } from '../data/parse';
 import { buildTable, isNumericType } from '../data/profile';
 import type { LayoutInfo, Tool, TsneStatus } from '../engine/Engine';
 import type { MotionPreset } from '../engine/motion';
+import { withoutHistory } from './history';
 import {
   DEFAULT_TSNE,
   defaultView,
@@ -40,6 +41,13 @@ export interface AppState {
   motion: MotionPreset;
   /** Lasso selection (row indices). Transient: not part of the view or slides. */
   selection: number[];
+  /** Field being dragged from the Data panel (shows the stage drop zones). */
+  draggingField: string | null;
+  findOpen: boolean;
+  canUndo: boolean;
+  canRedo: boolean;
+  /** Export progress, e.g. "Rendering slide 2 / 5" (null when idle). */
+  exporting: string | null;
   layoutInfo: LayoutInfo | null;
   tsneStatus: TsneStatus;
   /** Restored from IndexedDB (or nothing to restore). */
@@ -64,6 +72,11 @@ const initial: AppState = {
   theme: 'system',
   motion: 'balanced',
   selection: [],
+  draggingField: null,
+  findOpen: false,
+  canUndo: false,
+  canRedo: false,
+  exporting: null,
   layoutInfo: null,
   tsneStatus: { state: 'idle', iteration: 0, total: 0 },
   hydrated: false,
@@ -225,6 +238,38 @@ export function setLayout(layout: LayoutSpec) {
   updateView((v) => ({ ...v, layout }));
 }
 
+export type DropZone = 'x' | 'y' | 'color' | 'alone';
+
+/** A field dropped on the stage: onto an axis (switching to 2D if needed), colour, or on its own. */
+export function dropField(field: string, zone: DropZone) {
+  const { table, view } = get();
+  const meta = table?.fieldByName[field];
+  if (!table || !meta || meta.type === 'text') return;
+  if (zone === 'color') return setEncoding({ color: field });
+  if (zone === 'alone') return setLayout({ mode: '1d', field });
+  const l = view.layout;
+  if (l.mode === '2d') {
+    setLayout(zone === 'x' ? { ...l, x: field, logX: false } : { ...l, y: field, logY: false });
+    return;
+  }
+  // Switching to 2D: keep the current 1D field on the other axis when there is one.
+  const fallback = layoutForMode('2d', table, { mode: 'cluster' }) as Extract<LayoutSpec, { mode: '2d' }>;
+  const pick = (...candidates: (string | undefined)[]) =>
+    candidates.find((c) => c && c !== field) ??
+    dimensionFields(table).find((f) => f.name !== field)?.name ??
+    field;
+  const other = pick(
+    l.mode === '1d' ? l.field : undefined,
+    zone === 'x' ? fallback.y : fallback.x,
+    fallback.x,
+  );
+  setLayout(zone === 'x' ? { mode: '2d', x: field, y: other } : { mode: '2d', x: other, y: field });
+}
+
+export function setOverlap(overlap: boolean) {
+  updateView((v) => ({ ...v, overlap }));
+}
+
 export function setEncoding(patch: Partial<Encoding>) {
   updateView((v) => ({ ...v, encoding: { ...v.encoding, ...patch } }));
 }
@@ -250,7 +295,10 @@ export function clearFilters() {
 }
 
 export function setTsneCoords(coords: (number | null)[]) {
-  updateView((v) => (v.layout.mode === 'tsne' ? { ...v, layout: { ...v.layout, coords } } : v));
+  // The embedding arriving is not a user edit: keep it out of undo history.
+  withoutHistory(() =>
+    updateView((v) => (v.layout.mode === 'tsne' ? { ...v, layout: { ...v.layout, coords } } : v)),
+  );
 }
 
 export function setCamera(camera: ViewState['camera']) {

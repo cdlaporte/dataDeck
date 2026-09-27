@@ -1,7 +1,16 @@
 import { DEFAULT_CAMERA } from '../state/types';
 import { isViewDirty, setCamera, startPresentation, useStore } from '../state/store';
 import { snapshot, updateActiveSlide } from './actions';
-import { IconCamera, IconCursor, IconLasso, IconMaximize, IconNote, IconPlay, IconSave } from './icons';
+import {
+  IconCamera,
+  IconCursor,
+  IconLasso,
+  IconMaximize,
+  IconNote,
+  IconPlay,
+  IconSave,
+  IconSearch,
+} from './icons';
 import type { Tool } from '../engine/Engine';
 
 export function StageToolbar() {
@@ -44,6 +53,15 @@ export function StageToolbar() {
         onClick={() => setTool(tool === 'lasso' ? 'select' : 'lasso')}
       >
         <IconLasso />
+      </button>
+      <button
+        type="button"
+        className="btn icon ghost"
+        title="Find a data point (⌘/Ctrl+F)"
+        aria-label="Find a data point"
+        onClick={() => useStore.setState({ findOpen: true })}
+      >
+        <IconSearch />
       </button>
       <button
         type="button"

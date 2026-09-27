@@ -1,7 +1,7 @@
 import { color as parseColor } from 'd3-color';
 import { scaleLinear, scaleSqrt } from 'd3-scale';
 import { MISSING_KEY } from '../data/filters';
-import type { DataTable, Encoding } from '../state/types';
+import type { Annotation, DataTable, Encoding } from '../state/types';
 import {
   CATEGORICAL,
   DEFAULT_COLOR,
@@ -149,4 +149,61 @@ export function baseRadius(
   const area = Math.max(1, plotWidth * plotHeight);
   const r = Math.sqrt((area * 0.16) / (Math.max(1, visibleCount) * Math.PI)) / Math.sqrt(meanFactor);
   return Math.max(2, Math.min(18, r));
+}
+
+/** Opacity of bubbles greyed out by a highlighting annotation. */
+export const GREYED_ALPHA = 0.45;
+
+/** Rows covered by an annotation anchor (free-standing notes cover none). */
+export function anchorRows(table: DataTable, anchor: Annotation['anchor']): number[] {
+  if (anchor.kind === 'point') return anchor.row < table.rowCount ? [anchor.row] : [];
+  if (anchor.kind === 'rows') return anchor.rows.filter((r) => r < table.rowCount);
+  if (anchor.kind === 'group') {
+    const col = table.columns[anchor.field];
+    if (!col || col.kind !== 'string') return [];
+    const out: number[] = [];
+    for (let i = 0; i < table.rowCount; i++) if ((col.values[i] ?? MISSING_KEY) === anchor.value) out.push(i);
+    return out;
+  }
+  return [];
+}
+
+/**
+ * Applies highlighting annotations: covered rows keep their encoded colour (or
+ * take the annotation's colour); every other row turns neutral grey.
+ * Returns the new colours and a mask of greyed rows (null when nothing highlights).
+ */
+export function applyHighlights(
+  table: DataTable,
+  annotations: Annotation[],
+  rgb: Float32Array,
+  theme: ThemeName,
+): { rgb: Float32Array; greyed: Uint8Array | null } {
+  const active = annotations.filter((a) => a.highlight);
+  if (!active.length) return { rgb, greyed: null };
+  const n = table.rowCount;
+  const out = rgb.slice();
+  const covered = new Uint8Array(n);
+  for (const a of active) {
+    const custom = a.highlightColor ? hexToRgb(a.highlightColor) : null;
+    for (const r of anchorRows(table, a.anchor)) {
+      covered[r] = 1;
+      if (custom) out.set(custom, r * 3);
+    }
+  }
+  const grey = hexToRgb(NEUTRAL[theme]);
+  const greyed = new Uint8Array(n);
+  for (let i = 0; i < n; i++) {
+    if (covered[i]) continue;
+    greyed[i] = 1;
+    out.set(grey, i * 3);
+  }
+  return { rgb: out, greyed };
+}
+
+/** Changes whenever highlighting (on/off, anchor, colour) changes. */
+export function highlightSignature(annotations: Annotation[]): string {
+  return JSON.stringify(
+    annotations.filter((a) => a.highlight).map((a) => [a.anchor, a.highlightColor ?? null]),
+  );
 }

@@ -77,6 +77,8 @@ export class Overlay {
   private lastTransform = '';
   private groupField: string | null = null;
   interactive = false;
+  /** Screen rects notes should stay clear of (e.g. the legend). */
+  avoid: { x: number; y: number; w: number; h: number }[] = [];
 
   constructor(
     readonly svg: SVGSVGElement,
@@ -289,6 +291,7 @@ export class Overlay {
         (exit) => exit.remove(),
       );
 
+    const avoid = this.avoid;
     sel.each(function (d) {
       const g = select(this);
       const a = d.annotation;
@@ -301,15 +304,25 @@ export class Overlay {
       // Keep notes on screen: mirror the offset when the note would overflow and the other side fits.
       const size = node.__size;
       if (!drag && size) {
+        // Keep notes on screen and clear of the legend: try the offset as set,
+        // then mirrored horizontally, vertically, and both.
         const M = 10;
-        if (dx >= 0 ? d.x + dx + size.w > width - M : d.x + dx - size.w < M) {
-          const flipped = -dx;
-          if (flipped >= 0 ? d.x + flipped + size.w <= width - M : d.x + flipped - size.w >= M) dx = flipped;
-        }
-        if (dy >= 0 ? d.y + dy + size.h > height - M : d.y + dy - size.h < M) {
-          const flipped = -dy;
-          if (flipped >= 0 ? d.y + flipped + size.h <= height - M : d.y + flipped - size.h >= M) dy = flipped;
-        }
+        const fits = (ox: number, oy: number) => {
+          const x0 = ox >= 0 ? d.x + ox - 4 : d.x + ox - size.w - 4;
+          const x1 = x0 + size.w + 8;
+          const y0 = oy >= 0 ? d.y + oy - 6 : d.y + oy - size.h;
+          const y1 = y0 + size.h + 8;
+          if (x0 < M || y0 < M || x1 > width - M || y1 > height - M) return false;
+          return !avoid.some((r) => x0 < r.x + r.w && x1 > r.x && y0 < r.y + r.h && y1 > r.y);
+        };
+        const options: [number, number][] = [
+          [dx, dy],
+          [-dx, dy],
+          [dx, -dy],
+          [-dx, -dy],
+        ];
+        const best = options.find(([ox, oy]) => fits(ox, oy));
+        if (best) [dx, dy] = best;
       }
       g.style('opacity', d.visible ? '1' : '0');
 

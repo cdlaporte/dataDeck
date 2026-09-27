@@ -15,7 +15,7 @@ import {
 } from '../state/store';
 import type { FieldMeta, FieldType, Filter } from '../state/types';
 import { Slider, Sparkline, TypeBadge } from './controls';
-import { TYPE_GLYPH, TYPE_LABEL } from './fieldTypes';
+import { FIELD_MIME, TYPE_GLYPH, TYPE_LABEL } from './fieldTypes';
 import { IconFilter, IconLasso, IconPalette, IconPanelLeft, IconPlus, IconX } from './icons';
 
 export function DataPanel() {
@@ -103,7 +103,18 @@ function FieldItem({ field }: { field: FieldMeta }) {
     (layout.mode === '2d' && (layout.x === field.name || layout.y === field.name));
   const usable = field.type !== 'text' && field.distinct > 0;
   return (
-    <div className={`field-item${active ? ' active' : ''}`}>
+    <div
+      className={`field-item${active ? ' active' : ''}${usable ? ' draggable' : ''}`}
+      draggable={usable}
+      onDragStart={(e) => {
+        e.dataTransfer.setData(FIELD_MIME, field.name);
+        e.dataTransfer.setData('text/plain', field.name);
+        e.dataTransfer.effectAllowed = 'copy';
+        // Defer so the drag image is captured before the drop zones appear.
+        requestAnimationFrame(() => useStore.setState({ draggingField: field.name }));
+      }}
+      onDragEnd={() => useStore.setState({ draggingField: null })}
+    >
       <TypeMenu field={field} />
       <button
         type="button"
@@ -111,7 +122,7 @@ function FieldItem({ field }: { field: FieldMeta }) {
         disabled={!usable}
         title={
           usable
-            ? `Show “${field.name}” on its own`
+            ? `Show “${field.name}” on its own — or drag it onto an axis`
             : 'Text fields can’t be laid out — change the type to use it'
         }
         onClick={() => setLayout({ mode: '1d', field: field.name })}

@@ -1,12 +1,14 @@
 import { useState } from 'react';
 import { getEngine } from '../engine/instance';
 import { MOTION_LABEL, type MotionPreset } from '../engine/motion';
+import { overlapAllowed } from '../engine/layouts';
 import { isNumericType } from '../data/profile';
 import {
   dimensionFields,
   removeAnnotation,
   setEncoding,
   setLayout,
+  setOverlap,
   setLayoutMode,
   useStore,
 } from '../state/store';
@@ -82,16 +84,38 @@ export function ViewPanel() {
             {layout.mode === '1d' && (
               <div className="field-row">
                 <label className="label">Field</label>
-                <FieldSelect
-                  fields={dims}
-                  value={layout.field}
-                  ariaLabel="Layout field"
-                  onChange={(v) => v && setLayout({ mode: '1d', field: v })}
-                />
+                <div className="select-with-toggle">
+                  <FieldSelect
+                    fields={dims}
+                    value={layout.field}
+                    ariaLabel="Layout field"
+                    onChange={(v) => v && setLayout({ mode: '1d', field: v })}
+                  />
+                  <LogToggle
+                    field={layout.field}
+                    on={!!layout.log}
+                    axis="axis"
+                    onChange={(log) => setLayout({ ...layout, log })}
+                  />
+                </div>
               </div>
             )}
             {layout.mode === '2d' && <TwoDControls layout={layout} dims={dims} />}
             {layout.mode === 'tsne' && <TsneControls layout={layout} />}
+            {overlapAllowed(layout, table) && (
+              <label
+                className="switch-row"
+                title="Turn collisions off so bubbles sit exactly on their values"
+              >
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={!!view.overlap}
+                  onChange={(e) => setOverlap(e.target.checked)}
+                />
+                <span>Let bubbles overlap</span>
+              </label>
+            )}
           </div>
         </section>
 
@@ -141,12 +165,20 @@ function TwoDControls({
     <>
       <div className="field-row">
         <label className="label">X axis</label>
-        <FieldSelect
-          fields={dims}
-          value={layout.x}
-          ariaLabel="X axis field"
-          onChange={(v) => v && setLayout({ ...layout, x: v })}
-        />
+        <div className="select-with-toggle">
+          <FieldSelect
+            fields={dims}
+            value={layout.x}
+            ariaLabel="X axis field"
+            onChange={(v) => v && setLayout({ ...layout, x: v, logX: false })}
+          />
+          <LogToggle
+            field={layout.x}
+            on={!!layout.logX}
+            axis="X axis"
+            onChange={(logX) => setLayout({ ...layout, logX })}
+          />
+        </div>
       </div>
       <div className="field-row">
         <label
@@ -158,19 +190,57 @@ function TwoDControls({
             type="button"
             className="link"
             style={{ display: 'inline-flex', gap: 4, alignItems: 'center' }}
-            onClick={() => setLayout({ ...layout, x: layout.y, y: layout.x })}
+            onClick={() =>
+              setLayout({ ...layout, x: layout.y, y: layout.x, logX: layout.logY, logY: layout.logX })
+            }
           >
             <IconSwap size={12} /> Swap
           </button>
         </label>
-        <FieldSelect
-          fields={dims}
-          value={layout.y}
-          ariaLabel="Y axis field"
-          onChange={(v) => v && setLayout({ ...layout, y: v })}
-        />
+        <div className="select-with-toggle">
+          <FieldSelect
+            fields={dims}
+            value={layout.y}
+            ariaLabel="Y axis field"
+            onChange={(v) => v && setLayout({ ...layout, y: v, logY: false })}
+          />
+          <LogToggle
+            field={layout.y}
+            on={!!layout.logY}
+            axis="Y axis"
+            onChange={(logY) => setLayout({ ...layout, logY })}
+          />
+        </div>
       </div>
     </>
+  );
+}
+
+/** "Log" scale toggle, shown for quantitative fields only. */
+function LogToggle({
+  field,
+  on,
+  axis,
+  onChange,
+}: {
+  field: string;
+  on: boolean;
+  axis: string;
+  onChange: (on: boolean) => void;
+}) {
+  const type = useStore((s) => s.table?.fieldByName[field]?.type);
+  if (type !== 'quantitative') return null;
+  return (
+    <button
+      type="button"
+      className="btn small log-toggle"
+      aria-pressed={on}
+      aria-label={`Log scale for ${axis}`}
+      title="Logarithmic scale — spreads out skewed data"
+      onClick={() => onChange(!on)}
+    >
+      Log
+    </button>
   );
 }
 
