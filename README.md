@@ -59,13 +59,21 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
    - Press **A**, or use the note tool, then click a bubble, a group label or empty space.
    - Notes are anchored to a data point, a category group or a canvas position, so they follow the data as it moves.
    - Drag a note to reposition it; double-click it to edit.
-4. **Snapshot** (**S**) saves the current view as a slide. Click a slide to load it back into the editor. If you change a loaded slide, **Update slide** (**U**) saves the changes. Drag slides to reorder them.
-5. **Present** (**P**) goes fullscreen. Use ←/→ (or space) to move between slides and Esc to exit.
+4. **Select with a lasso.**
+   - Press **L** (or use the lasso tool), or hold **Shift** and drag in the normal tool, to draw around bubbles. Shift adds to the selection.
+   - The selection bar lets you:
+     - **Keep only** the selection, which drills in: everything else is filtered out
+     - **Exclude** the selection
+     - **Annotate** the selection with a note that circles the selected bubbles wherever they move
+   - Selections survive layout changes, so you can select in a scatter and see where those points land in t-SNE. Esc clears the selection.
+5. **Snapshot** (**S**) saves the current view as a slide. Click a slide to load it back into the editor. If you change a loaded slide, **Update slide** (**U**) saves the changes. Drag slides to reorder them.
+6. **Present** (**P**) goes fullscreen. Use ←/→ (or space) to move between slides and Esc to exit.
 
 You can also:
 
 - drag any bubble; the live simulation pushes its neighbours aside
 - scroll to zoom and drag the background to pan (the zoom is saved with the slide)
+- choose the **Motion** preset at the bottom of the View panel: **Calm**, **Balanced** or **Lively**
 - hover a bubble for its details
 - click a legend entry to hide or show that category
 
@@ -80,6 +88,8 @@ file with the dataset, field types and slides; **Open** loads one back, or a new
 | `U`           | Update the selected slide from the view |
 | `P`           | Present from the selected slide         |
 | `A` / `V`     | Annotate tool / select tool             |
+| `L`           | Lasso tool (or Shift-drag anytime)      |
+| `Esc`         | Clear selection, back to select tool    |
 | `1`–`4`       | Cluster / 1D / 2D / t-SNE               |
 | `0`           | Reset zoom                              |
 | `←` `→` `Esc` | Previous / next / exit (presenting)     |
@@ -109,6 +119,10 @@ Key ideas:
   swaps per-row target positions, force strengths and collision radii and reheats, so
   every change is a transition. Filtered-out rows shrink to nothing where they stand and
   grow back in place.
+- **Smooth, frame-rate-independent motion.** The simulation ticks at a fixed 60 Hz, so a
+  120 Hz display doesn't double the speed. Targets glide from the old layout to the new one,
+  a speed limit prevents fling, and alpha decays to a small resting value so groups come
+  to rest instead of churning.
 - **ViewState is the slide.** Layout, encodings, filters, annotations, camera and title
   are plain JSON. A snapshot is a deep copy, plus the final t-SNE embedding so
   presentations replay without recomputing.
