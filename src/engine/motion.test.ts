@@ -55,8 +55,8 @@ describe('motion', () => {
   it('settles: grouped bubbles come to rest instead of churning', () => {
     for (const preset of ['calm', 'balanced'] as const) {
       const sim = cluster(800, preset);
-      // 6 simulated seconds.
-      for (let t = 0; t < Math.round(6000 / TICK_MS); t++) sim.tick();
+      // 8 simulated seconds: bubbles first arrive (arrival hold), then come to rest.
+      for (let t = 0; t < Math.round(8000 / TICK_MS); t++) sim.tick();
       const meanSpeed = Math.sqrt(sim.kineticEnergy() / sim.nodes.length);
       expect(meanSpeed).toBeLessThan(0.05);
     }

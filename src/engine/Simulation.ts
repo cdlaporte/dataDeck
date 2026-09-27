@@ -39,6 +39,13 @@ export class Simulation {
   /** Alpha held while targets are moving, so bubbles keep up with them. */
   private holdAlpha = 0;
   /**
+   * Arrival-aware hold: after the glide ends, alpha stays at `holdAlpha` for as
+   * long as bubbles are still closing in on their targets, then is released.
+   */
+  private arriving = false;
+  private arrivalTicks = 0;
+  private lastRemaining = Infinity;
+  /**
    * Per-node "dead zone" radius: members of a group that share one target are
    * not pulled while inside the group's packed radius, so the interior is not
    * squeezed against collisions (the cause of jitter in dense clumps).
@@ -155,6 +162,9 @@ export class Simulation {
   reheat(alpha = 0.6) {
     this.sim.alpha(Math.max(this.sim.alpha(), alpha));
     this.holdAlpha = alpha;
+    this.arriving = true;
+    this.arrivalTicks = 0;
+    this.lastRemaining = Infinity;
   }
 
   get alpha() {
@@ -183,8 +193,49 @@ export class Simulation {
         ty[i] = fromY[i] + (toY[i] - fromY[i]) * e;
       }
       if (this.sim.alpha() < this.holdAlpha) this.sim.alpha(this.holdAlpha);
+    } else if (this.arriving) {
+      this.checkArrival();
+      if (this.arriving && this.sim.alpha() < this.holdAlpha) this.sim.alpha(this.holdAlpha);
     }
     this.sim.tick();
+  }
+
+  /** Whether the arrival hold is still active (for tests). */
+  get holding() {
+    return this.transitioning || this.arriving;
+  }
+
+  /**
+   * Every 0.25 s, compare how far bubbles still are from their targets (beyond
+   * their group's dead zone). While that keeps shrinking, keep the energy up;
+   * once progress stalls (arrived, or packed against neighbours) let it decay.
+   */
+  private checkArrival() {
+    const CHECK_EVERY = 15;
+    const MAX_TICKS = Math.round(8000 / TICK_MS);
+    this.arrivalTicks++;
+    if (this.arrivalTicks >= MAX_TICKS) {
+      this.arriving = false;
+      return;
+    }
+    if (this.arrivalTicks % CHECK_EVERY !== 0) return;
+    const { tx, ty, dead, collideR } = this;
+    let sum = 0;
+    let sumR = 0;
+    let count = 0;
+    for (const node of this.nodes) {
+      const i = node.index;
+      if (!(collideR[i] > 0)) continue;
+      sum += Math.max(0, Math.hypot(tx[i] - node.x, ty[i] - node.y) - dead[i]);
+      sumR += collideR[i];
+      count++;
+    }
+    const remaining = count ? sum / count : 0;
+    const meanR = count ? sumR / count : 1;
+    // Progress is measured against the best so far, so jostling can't prolong the hold.
+    const improving = remaining < this.lastRemaining * 0.985 && remaining > 0.5 * meanR;
+    if (remaining < this.lastRemaining) this.lastRemaining = remaining;
+    if (!improving) this.arriving = false;
   }
 
   /** Translates every node and target (used when the viewport resizes). */

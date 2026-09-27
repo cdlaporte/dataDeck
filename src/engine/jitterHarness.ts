@@ -75,3 +75,39 @@ export function measureClumps(n: number, groups = 1, settleMs = 6000, sim = new 
   overlaps.sort((a, b) => a - b);
   return { jitter, p95Overlap: overlaps[Math.floor(overlaps.length * 0.95)] };
 }
+
+/**
+ * Transition from one big cluster to `groups` separate groups and report the
+ * share of bubbles still outside 1.3× their group's packed radius after `ms`.
+ */
+export function measureStragglers(n: number, groups: number, ms: number, sim = new Simulation()): number {
+  const r = appRadius(n) * 0.8;
+  sim.setMotion(MOTION.balanced);
+  sim.setCount(n, 0, 0, r * 2);
+  const radii = new Float32Array(n).fill(r + 0.8);
+  sim.setCollision(radii, 0.85);
+  (sim as { setDensity?: (n: number) => void }).setDensity?.(n);
+  // Settle as one cluster first (like the app's initial view).
+  sim.setTargets(new Float32Array(n), new Float32Array(n), 0.06, 0.06);
+  sim.reheat(0.6);
+  for (let t = 0; t < Math.round(4000 / TICK_MS); t++) sim.tick();
+
+  const cols = Math.ceil(Math.sqrt(groups));
+  const tx = new Float32Array(n);
+  const ty = new Float32Array(n);
+  for (let i = 0; i < n; i++) {
+    const g = i % groups;
+    tx[i] = (g % cols) * 260 - 300;
+    ty[i] = Math.floor(g / cols) * 260 - 300;
+  }
+  sim.setTargets(tx, ty, 0.1, 0.1);
+  sim.reheat(0.6);
+  for (let t = 0; t < Math.round(ms / TICK_MS); t++) sim.tick();
+
+  const R = Math.sqrt(((n / groups) * (r + 0.8) ** 2) / 0.82);
+  let out = 0;
+  sim.nodes.forEach((d, i) => {
+    if (Math.hypot(d.x - tx[i], d.y - ty[i]) > 1.3 * R) out++;
+  });
+  return out / n;
+}
