@@ -343,8 +343,11 @@ function stripCoords(v: ViewState) {
 // ---------------------------------------------------------------------------
 // Presentation
 
+/** Editor state saved when presenting starts, so unsaved edits survive a quick preview. */
+let beforePresenting: { view: ViewState; activeSlideId: string | null; index: number } | null = null;
+
 export function startPresentation(index?: number) {
-  const { slides, activeSlideId, table } = get();
+  const { slides, activeSlideId, table, view } = get();
   if (!slides.length || !table) return;
   const i =
     index ??
@@ -352,6 +355,7 @@ export function startPresentation(index?: number) {
       0,
       slides.findIndex((s) => s.id === activeSlideId),
     );
+  beforePresenting = { view, activeSlideId, index: i };
   set({
     mode: 'present',
     presentIndex: i,
@@ -367,9 +371,16 @@ export function gotoSlide(i: number) {
   set({ presentIndex: i, view: sanitizeView(slides[i].view, table) });
 }
 
+/** Leaves presentation on the last shown slide (or back to the untouched editor state). */
 export function exitPresentation() {
   const { slides, presentIndex, table } = get();
   const slide = slides[presentIndex];
+  const saved = beforePresenting;
+  beforePresenting = null;
+  if (saved && saved.index === presentIndex && saved.activeSlideId === (slide?.id ?? null)) {
+    set({ mode: 'edit', activeSlideId: saved.activeSlideId, view: saved.view });
+    return;
+  }
   set({
     mode: 'edit',
     activeSlideId: slide?.id ?? null,

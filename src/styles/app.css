@@ -810,7 +810,12 @@ button.type-badge:hover {
 }
 
 .stage.over-bubble {
-  cursor: pointer;
+  cursor: grab;
+}
+
+.stage.dragging,
+.stage.dragging.over-bubble {
+  cursor: grabbing;
 }
 
 .stage.tool-annotate,
@@ -922,6 +927,10 @@ button.type-badge:hover {
 
 .presenting .stage-title input {
   pointer-events: none;
+}
+
+.presenting .stage-title input::placeholder {
+  color: transparent !important;
 }
 
 .presenting .stage-title .title-input {

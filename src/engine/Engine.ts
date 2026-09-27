@@ -81,6 +81,7 @@ export class Engine {
   private transform: Transform = { k: 1, x: 0, y: 0 };
   private cameraTween: { from: CameraState; to: CameraState; start: number } | null = null;
   private suppressCameraEvents = false;
+  private suppressClick = false;
 
   private table: DataTable | null = null;
   private view: ViewState | null = null;
@@ -141,6 +142,9 @@ export class Engine {
         const target = e.target as Element | null;
         if (target?.closest?.('.annotation-note')) return false;
         const me = e as MouseEvent;
+        // Pressing on a bubble drags the bubble instead of panning.
+        if ((e.type === 'mousedown' || e.type === 'touchstart') && this.tool === 'select' && this.dragHit(e))
+          return false;
         return (!me.ctrlKey || e.type === 'wheel') && !me.button;
       })
       .on('zoom', (e: D3ZoomEvent<HTMLElement, unknown>) => {
@@ -152,9 +156,10 @@ export class Engine {
       });
     select(container).call(this.zoomBehavior).on('dblclick.zoom', null);
 
+    container.addEventListener('pointerdown', this.handlePointerDown);
     container.addEventListener('pointermove', this.handlePointerMove);
     container.addEventListener('pointerleave', this.handlePointerLeave);
-    container.addEventListener('click', this.handleClick);
+    container.addEventListener('click', this.handleClick, true);
 
     this.resizeObserver = new ResizeObserver(() => this.resize());
     this.resizeObserver.observe(container);
@@ -210,7 +215,8 @@ export class Engine {
   setView(view: ViewState, opts: { animateCamera?: boolean } = {}) {
     const prev = this.view;
     this.view = view;
-    this.recompute(!prev || !sameLayoutInputs(prev, view));
+    // Title / caption / annotation / camera edits don't touch the layout.
+    if (!prev || !sameLayoutInputs(prev, view)) this.recompute(true);
     const current = this.cameraState();
     const c = view.camera;
     if (
@@ -305,9 +311,10 @@ export class Engine {
   dispose() {
     cancelAnimationFrame(this.raf);
     this.resizeObserver.disconnect();
+    this.container.removeEventListener('pointerdown', this.handlePointerDown);
     this.container.removeEventListener('pointermove', this.handlePointerMove);
     this.container.removeEventListener('pointerleave', this.handlePointerLeave);
-    this.container.removeEventListener('click', this.handleClick);
+    this.container.removeEventListener('click', this.handleClick, true);
     select(this.container).on('.zoom', null);
     this.worker?.terminate();
     this.renderer.dispose();
@@ -592,6 +599,46 @@ export class Engine {
     return Math.hypot(node.x - w.x, node.y - w.y) <= this.displayR[found] + slop ? found : -1;
   }
 
+  private dragHit(e: Event): boolean {
+    const p = 'touches' in e ? (e as TouchEvent).touches[0] : (e as MouseEvent);
+    return !!p && this.pick(p.clientX, p.clientY) >= 0;
+  }
+
+  /** Drag a bubble: it is pinned under the pointer while the live simulation flows around it. */
+  private handlePointerDown = (e: PointerEvent) => {
+    if (e.button !== 0 || this.tool !== 'select') return;
+    if ((e.target as Element).closest('.annotation-note, .group')) return;
+    const hit = this.pick(e.clientX, e.clientY);
+    if (hit < 0) return;
+    const node = this.sim.nodes[hit];
+    const start = { x: e.clientX, y: e.clientY };
+    let moved = false;
+    this.container.setPointerCapture(e.pointerId);
+    this.container.classList.add('dragging');
+    const move = (ev: PointerEvent) => {
+      if (!moved && Math.hypot(ev.clientX - start.x, ev.clientY - start.y) < 3) return;
+      moved = true;
+      const w = this.toWorld(ev.clientX, ev.clientY);
+      node.fx = w.x;
+      node.fy = w.y;
+      this.sim.reheat(0.3);
+      this.callbacks.onHover?.(null);
+    };
+    const up = () => {
+      this.container.removeEventListener('pointermove', move);
+      this.container.removeEventListener('pointerup', up);
+      this.container.removeEventListener('pointercancel', up);
+      this.container.classList.remove('dragging');
+      node.fx = null;
+      node.fy = null;
+      this.sim.reheat(0.3);
+      if (moved) this.suppressClick = true;
+    };
+    this.container.addEventListener('pointermove', move);
+    this.container.addEventListener('pointerup', up);
+    this.container.addEventListener('pointercancel', up);
+  };
+
   private handlePointerMove = (e: PointerEvent) => {
     if (e.buttons) return;
     const hit = this.pick(e.clientX, e.clientY);
@@ -606,6 +653,11 @@ export class Engine {
   };
 
   private handleClick = (e: MouseEvent) => {
+    if (this.suppressClick) {
+      this.suppressClick = false;
+      e.stopPropagation();
+      return;
+    }
     if ((e.target as Element).closest('.annotation-note, .group')) return;
     const hit = this.pick(e.clientX, e.clientY);
     const w = this.toWorld(e.clientX, e.clientY);
