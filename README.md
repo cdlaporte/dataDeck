@@ -22,6 +22,8 @@ npm install
 npm run dev          # or npm start → http://localhost:5173
 ```
 
+After pulling updates, run `npm install` again. If you forget, the dev server tells you.
+
 Pick one of the bundled samples, or drop in your own CSV/TSV:
 
 | Sample          | Rows  | What's in it                                     |
