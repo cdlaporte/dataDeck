@@ -27,18 +27,20 @@ function captureView(): ViewState {
 
 export async function snapshot() {
   const view = captureView();
-  const thumb = (await getEngine()?.captureThumbnail(view.title)) ?? null;
+  const engine = getEngine();
+  const thumb = (await engine?.captureThumbnail(view.title)) ?? null;
   useStore.setState({ view });
-  addSlide(view, thumb, readThemeColors().name);
+  addSlide(view, thumb, readThemeColors().name, engine?.size());
 }
 
 export async function updateActiveSlide() {
   const { activeSlideId } = useStore.getState();
   if (!activeSlideId) return;
   const view = captureView();
-  const thumb = (await getEngine()?.captureThumbnail(view.title)) ?? null;
+  const engine = getEngine();
+  const thumb = (await engine?.captureThumbnail(view.title)) ?? null;
   useStore.setState({ view });
-  updateSlide(activeSlideId, view, thumb, readThemeColors().name);
+  updateSlide(activeSlideId, view, thumb, readThemeColors().name, engine?.size());
 }
 
 /** Toggles a category in the categorical filter for `field` (used by legend clicks). */

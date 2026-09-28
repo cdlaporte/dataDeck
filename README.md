@@ -82,6 +82,8 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
 5. **Snapshot** (**S**) saves the current view as a slide. Click a slide to load it back into the editor. If you change a loaded slide, **Update slide** (**U**) saves the changes. Drag slides to reorder them.
    The chevron in the slide strip switches to a **compact strip** of numbered chips; hover a chip to see its preview. Previews are redrawn automatically when you switch between light and dark themes.
 6. **Present** (**P**) goes fullscreen. Use ←/→ (or space) to move between slides and Esc to exit.
+   Each slide is shown exactly as it was snapshotted (same layout, note positions, legend and title), scaled up to fit the screen. Slide previews and PDF pages use the same framing.
+   Notes stay exactly where you put them. When a note is first placed it picks a side clear of the stage edges and the legend; after that it never moves on its own.
 
 You can also:
 

@@ -152,6 +152,14 @@ export class Renderer {
     this.geometry.instanceCount = n;
   }
 
+  /** Device pixels per CSS pixel (raised when the stage is shown enlarged). */
+  setPixelRatio(ratio: number) {
+    if (this.renderer.getPixelRatio() === ratio) return;
+    const size = this.material.uniforms.uViewport.value;
+    this.renderer.setPixelRatio(ratio);
+    this.renderer.setSize(size.x, size.y, false);
+  }
+
   setSize(width: number, height: number) {
     this.renderer.setSize(width, height, false);
     this.material.uniforms.uViewport.value.set(width, height);

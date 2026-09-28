@@ -798,6 +798,19 @@ button.type-badge:hover {
   overflow: hidden;
 }
 
+.slide-frame {
+  position: absolute;
+  inset: 0;
+}
+
+/* A slide shown at its snapshot size, scaled uniformly to fit (see Stage.tsx). */
+.slide-frame.framed {
+  inset: auto;
+  left: 0;
+  top: 0;
+  transform-origin: 0 0;
+}
+
 .stage {
   position: absolute;
   inset: 0;
@@ -926,7 +939,7 @@ button.type-badge:hover {
   color: var(--text-muted);
 }
 
-.presenting .stage-title {
+.presenting .slide-frame:not(.framed) .stage-title {
   top: 36px;
   left: 48px;
 }
@@ -939,11 +952,11 @@ button.type-badge:hover {
   color: transparent !important;
 }
 
-.presenting .stage-title .title-input {
+.presenting .slide-frame:not(.framed) .stage-title .title-input {
   font-size: 30px;
 }
 
-.presenting .stage-title .caption-input {
+.presenting .slide-frame:not(.framed) .stage-title .caption-input {
   font-size: 17px;
 }
 

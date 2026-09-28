@@ -40,10 +40,17 @@ async function redrawStale() {
   const stale = start.slides.filter((s) => slideStyleKey(s) !== key);
   if (!start.table || !stale.length) return;
 
-  const live = getEngine()?.container.getBoundingClientRect();
+  const live = getEngine()?.size();
+  const fallback = { width: live?.width || 1000, height: live?.height || 640 };
   const host = document.createElement('div');
   host.setAttribute('aria-hidden', 'true');
-  host.style.cssText = `position:fixed;left:-20000px;top:0;width:${Math.round(live?.width || 1000)}px;height:${Math.round(live?.height || 640)}px;pointer-events:none;`;
+  host.style.cssText = 'position:fixed;left:-20000px;top:0;pointer-events:none;';
+  // Each preview renders at its slide's frame (the size it was snapshotted at).
+  const sizeHost = (f: { width: number; height: number }) => {
+    host.style.width = `${Math.round(f.width)}px`;
+    host.style.height = `${Math.round(f.height)}px`;
+  };
+  sizeHost(fallback);
   document.body.append(host);
   useStore.setState({ refreshingThumbnails: true });
   const engine = new Engine(host, {}, { headless: true });
@@ -58,6 +65,8 @@ async function redrawStale() {
       if (!current || !s.table) continue;
       const view = sanitizeView(current.view, s.table);
       if (view.layout.mode === 'tsne' && !view.layout.coords) continue;
+      sizeHost(current.frame ?? fallback);
+      engine.syncSize();
       engine.setTable(s.table, view);
       engine.jumpToTargets();
       engine.settle(RELAX_TICKS);

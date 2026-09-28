@@ -144,9 +144,17 @@ export type ReferenceKind = 'mean' | 'median';
 /** Custom colours per category: field → category value → hex colour. */
 export type CategoryColors = Record<string, Record<string, string>>;
 
+/** Logical stage size (CSS px) a slide was composed at. */
+export interface Frame {
+  width: number;
+  height: number;
+}
+
 export interface Slide {
   id: string;
   view: ViewState;
+  /** Stage size at snapshot time: presentations, previews and PDFs render this frame scaled to fit. */
+  frame?: Frame;
   thumbnail: string | null;
   /** Theme the thumbnail was drawn in (redrawn when the app theme changes). */
   thumbnailTheme?: 'light' | 'dark';

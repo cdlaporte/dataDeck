@@ -16,6 +16,7 @@ import {
   type Encoding,
   type FieldType,
   type Filter,
+  type Frame,
   type LayoutMode,
   type LayoutSpec,
   type ReferenceKind,
@@ -57,6 +58,8 @@ export interface AppState {
   refreshingThumbnails: boolean;
   /** Export progress, e.g. "Rendering slide 2 / 5" (null when idle). */
   exporting: string | null;
+  /** Frame the stage renders at while exporting a slide (null = fill the stage). */
+  renderFrame: Frame | null;
   layoutInfo: LayoutInfo | null;
   tsneStatus: TsneStatus;
   /** Restored from IndexedDB (or nothing to restore). */
@@ -87,6 +90,7 @@ const initial: AppState = {
   canUndo: false,
   canRedo: false,
   exporting: null,
+  renderFrame: null,
   stripCompact: false,
   refreshingThumbnails: false,
   layoutInfo: null,
@@ -374,6 +378,14 @@ export function setViewText(patch: Partial<Pick<ViewState, 'title' | 'caption'>>
   updateView((v) => ({ ...v, ...patch }));
 }
 
+type NotePlacer = (anchor: Annotation['anchor'], dx: number, dy: number) => [number, number];
+let notePlacer: NotePlacer | null = null;
+
+/** Registers how new callouts pick an on-screen side (the stage engine provides it). */
+export function setNotePlacer(fn: NotePlacer | null) {
+  notePlacer = fn;
+}
+
 /**
  * Adds a note. `subjectRadius` (screen px) is the size of the circle drawn around
  * the anchor; the default offset places the note just outside it.
@@ -390,8 +402,11 @@ export function addAnnotation(
   // Alternate default directions so consecutive notes don't stack.
   const k = view.annotations.length;
   const reach = subjectRadius * Math.SQRT1_2;
-  const dx = (k % 2 === 0 ? 1 : -1) * (60 + reach);
-  const dy = (k % 4 < 2 ? -1 : 1) * (50 + reach);
+  let dx = (k % 2 === 0 ? 1 : -1) * (60 + reach);
+  let dy = (k % 4 < 2 ? -1 : 1) * (50 + reach);
+  // Pick the side once, when placing; the stored offset is then used everywhere.
+  if (notePlacer && extra.style !== 'text' && extra.dx === undefined && extra.dy === undefined)
+    [dx, dy] = notePlacer(anchor, dx, dy);
   updateView((v) => ({
     ...v,
     annotations: [...v.annotations, { id, anchor, dx, dy, title, text, ...extra }],
@@ -454,11 +469,13 @@ export function addSlide(
   view: ViewState,
   thumbnail: string | null,
   thumbnailTheme?: 'light' | 'dark',
+  frame?: Frame,
 ): Slide {
   const { slides, activeSlideId } = get();
   const slide: Slide = {
     id: makeId(),
     view: clone(view),
+    ...(frame ? { frame: { ...frame } } : {}),
     thumbnail,
     thumbnailTheme,
     thumbnailStyle: thumbnailTheme ? thumbnailStyleKey(thumbnailTheme, get().categoryColors) : undefined,
@@ -475,6 +492,7 @@ export function updateSlide(
   view: ViewState,
   thumbnail: string | null,
   thumbnailTheme?: 'light' | 'dark',
+  frame?: Frame,
 ) {
   set({
     slides: get().slides.map((s) =>
@@ -482,6 +500,7 @@ export function updateSlide(
         ? {
             ...s,
             view: clone(view),
+            frame: frame ? { ...frame } : s.frame,
             thumbnail: thumbnail ?? s.thumbnail,
             thumbnailTheme: thumbnail ? thumbnailTheme : s.thumbnailTheme,
             thumbnailStyle:

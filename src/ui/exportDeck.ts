@@ -44,6 +44,10 @@ export async function exportPdf() {
     for (const [i, slide] of state.slides.entries()) {
       useStore.setState({ exporting: `Rendering slide ${i + 1} of ${state.slides.length}…` });
       const view = sanitizeView(slide.view, state.table);
+      // Render at the slide's own frame so pages match what was snapshotted.
+      useStore.setState({ renderFrame: slide.frame ?? null });
+      await nextFrame();
+      engine.syncSize();
       await renderView(view);
       const canvas = await engine.captureImage({
         scale: 2,
@@ -62,7 +66,7 @@ export async function exportPdf() {
     pdf?.save(`${fileBase()}.pdf`);
   } finally {
     withoutHistory(() => useStore.setState({ view: saved.view, activeSlideId: saved.activeSlideId }));
-    useStore.setState({ exporting: null, selection: saved.selection });
+    useStore.setState({ exporting: null, selection: saved.selection, renderFrame: null });
   }
 }
 

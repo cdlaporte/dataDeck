@@ -84,8 +84,10 @@ export class Overlay {
   private lastTransform = '';
   private groupField: string | null = null;
   interactive = false;
-  /** Screen rects notes should stay clear of (e.g. the legend). */
+  /** Screen rects new notes are placed clear of (e.g. the legend). */
   avoid: { x: number; y: number; w: number; h: number }[] = [];
+  /** CSS scale the stage is shown at (presenting a slide scaled to fit). */
+  displayScale = 1;
 
   constructor(
     readonly svg: SVGSVGElement,
@@ -339,7 +341,7 @@ export class Overlay {
       .style('cursor', this.interactive ? 'copy' : 'default');
   }
 
-  private updateAnnotations(placements: AnnotationPlacement[], width: number, height: number) {
+  private updateAnnotations(placements: AnnotationPlacement[]) {
     const th = this.theme;
     const sel = this.annotationLayer
       .selectAll<SVGGElement, AnnotationPlacement>('g.annotation:not(.leaving)')
@@ -377,7 +379,6 @@ export class Overlay {
         },
       );
 
-    const avoid = this.avoid;
     sel.each(function (d) {
       const g = select(this);
       const a = d.annotation;
@@ -385,32 +386,11 @@ export class Overlay {
       // (slide changes, edit ↔ present) gets a fresh element and must rebuild its text.
       const node = g.node() as NoteElement;
       const drag = node.__drag;
-      let dx = drag?.dx ?? a.dx;
-      let dy = drag?.dy ?? a.dy;
-      // Plain text boxes sit exactly where they were put; callouts keep clear of edges and the legend.
+      // Notes sit exactly at their stored offset (WYSIWYG across editor, previews
+      // and presentation). Keeping clear of edges happens once, when a note is placed.
+      const dx = drag?.dx ?? a.dx;
+      const dy = drag?.dy ?? a.dy;
       const isText = a.style === 'text';
-      const size = node.__size;
-      if (!drag && size && !isText) {
-        // Keep notes on screen and clear of the legend: try the offset as set,
-        // then mirrored horizontally, vertically, and both.
-        const M = 10;
-        const fits = (ox: number, oy: number) => {
-          const x0 = ox >= 0 ? d.x + ox - 4 : d.x + ox - size.w - 4;
-          const x1 = x0 + size.w + 8;
-          const y0 = oy >= 0 ? d.y + oy - 6 : d.y + oy - size.h;
-          const y1 = y0 + size.h + 8;
-          if (x0 < M || y0 < M || x1 > width - M || y1 > height - M) return false;
-          return !avoid.some((r) => x0 < r.x + r.w && x1 > r.x && y0 < r.y + r.h && y1 > r.y);
-        };
-        const options: [number, number][] = [
-          [dx, dy],
-          [-dx, dy],
-          [dx, -dy],
-          [-dx, -dy],
-        ];
-        const best = options.find(([ox, oy]) => fits(ox, oy));
-        if (best) [dx, dy] = best;
-      }
       // Inline opacity (not a class) so exports, which carry no stylesheet, respect it;
       // the CSS transition on .annotation turns changes into quick fades.
       g.attr('data-visible', d.visible ? 1 : 0).style(
@@ -495,10 +475,11 @@ export class Overlay {
       __drag?: { dx: number; dy: number };
     };
     const start = { x: e.clientX, y: e.clientY, dx: d.annotation.dx, dy: d.annotation.dy };
+    const scale = this.displayScale || 1;
     let moved = false;
     const move = (ev: PointerEvent) => {
-      const dx = start.dx + ev.clientX - start.x;
-      const dy = start.dy + ev.clientY - start.y;
+      const dx = start.dx + (ev.clientX - start.x) / scale;
+      const dy = start.dy + (ev.clientY - start.y) / scale;
       if (Math.abs(ev.clientX - start.x) + Math.abs(ev.clientY - start.y) > 2) moved = true;
       g.__drag = { dx, dy };
       this.callbacks.onAnnotationMove(d.annotation.id, dx, dy, false);
@@ -525,6 +506,6 @@ export class Overlay {
     this.root.attr('width', width).attr('height', height).attr('viewBox', `0 0 ${width} ${height}`);
     this.positionAxes(t, width, height);
     this.updateGroups(groups, groupField, t);
-    this.updateAnnotations(annotations, width, height);
+    this.updateAnnotations(annotations);
   }
 }

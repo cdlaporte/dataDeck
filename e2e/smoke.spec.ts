@@ -501,3 +501,73 @@ test('mean / median lines, custom category colours, axis text, note fades', asyn
   await expect(page.locator('g.annotation')).toHaveCount(0, { timeout: 1000 });
   expect(errors).toEqual([]);
 });
+
+test('notes stay exactly where they were snapshotted, in presentation and previews', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByText('Palmer penguins').click();
+  await page.locator('.field-name', { hasText: 'species' }).click();
+  await settle(page);
+  await page.locator('.title-input').fill('Penguins');
+  await page.keyboard.press('Enter');
+
+  // A note dragged up toward the legend: it used to flip away on its own.
+  const stage = (await page.locator('.stage').boundingBox())!;
+  await page.keyboard.press('a');
+  await page.mouse.click(stage.x + stage.width * 0.55, stage.y + stage.height * 0.5);
+  await page.getByRole('button', { name: 'Done' }).click();
+  const note = page.locator('g.annotation-note').first();
+  const b = (await note.boundingBox())!;
+  await page.mouse.move(b.x + 10, b.y + 5);
+  await page.mouse.down();
+  await page.mouse.move(b.x + 11, b.y + 5);
+  // Starting a drag doesn't jump the note.
+  const nudged = (await note.boundingBox())!;
+  expect(Math.abs(nudged.x - b.x - 1)).toBeLessThan(2);
+  await page.mouse.move(b.x + 150, b.y - 90, { steps: 8 });
+  await page.mouse.up();
+  await settle(page, 30);
+
+  // Positions relative to the stage, in the stage's own (unscaled) units.
+  const measure = () =>
+    page.evaluate(() => {
+      const st = document.querySelector('.stage')!.getBoundingClientRect();
+      const hooks = (window as unknown as Hooks).__datadeck;
+      const scale = st.width / (hooks.engine() as unknown as { size(): { width: number } }).size().width;
+      const rel = (sel: string) => {
+        const r = document.querySelector(sel)!.getBoundingClientRect();
+        return [(r.left - st.left) / scale, (r.top - st.top) / scale];
+      };
+      return { scale, note: rel('g.annotation-note'), title: rel('.title-input') };
+    });
+  const editor = await measure();
+  expect(editor.scale).toBeCloseTo(1);
+  const ann = (await state(page)).view.annotations[0];
+  const anchorFree = ann.anchor.kind === 'free';
+  expect(anchorFree).toBe(true);
+
+  await page.keyboard.press('s');
+  await expect(page.locator('.slide-thumb')).toHaveCount(1);
+  const frame = (await state(page)).slides[0].frame;
+  expect(frame).toEqual({ width: Math.round(stage.width), height: Math.round(stage.height) });
+
+  // Presenting shows the same composition, scaled to fit the screen.
+  await page.keyboard.press('p');
+  await expect(page.locator('.slide-frame.framed')).toBeVisible();
+  // The stage grows to fullscreen, then the frame scales up to fit it.
+  await expect.poll(async () => (await measure()).scale).toBeGreaterThan(1.05);
+  await settle(page, 60);
+  const shown = await measure();
+  const box = (await page.locator('.slide-frame').boundingBox())!;
+  expect(box.width / box.height).toBeCloseTo(frame.width / frame.height, 2);
+  for (const k of ['note', 'title'] as const) {
+    expect(Math.abs(shown[k][0] - editor[k][0])).toBeLessThan(2);
+    expect(Math.abs(shown[k][1] - editor[k][1])).toBeLessThan(2);
+  }
+  expect((await state(page)).view.annotations[0]).toMatchObject({ dx: ann.dx, dy: ann.dy });
+
+  await page.keyboard.press('Escape');
+  await expect(page.locator('.slide-frame.framed')).toHaveCount(0);
+  expect((await measure()).scale).toBeCloseTo(1);
+  expect(errors).toEqual([]);
+});

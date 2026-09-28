@@ -8,6 +8,7 @@ import type {
   CameraState,
   CategoryColors,
   DataTable,
+  Frame,
   LayoutSpec,
   ViewState,
 } from '../state/types';
@@ -103,6 +104,8 @@ export class Engine {
   private raf = 0;
   private width = 1;
   private height = 1;
+  /** CSS scale the stage is displayed at (a slide presented scaled to fit). */
+  private displayScale = 1;
   private transform: Transform = { k: 1, x: 0, y: 0 };
   private cameraTween: { from: CameraState; to: CameraState; start: number; ms: number } | null = null;
   private suppressCameraEvents = false;
@@ -183,6 +186,8 @@ export class Engine {
       .filter((e: Event) => {
         const target = e.target as Element | null;
         if (target?.closest?.('.annotation-note')) return false;
+        // d3's pointer maths ignores CSS scaling; a scaled slide keeps its own camera.
+        if (this.displayScale !== 1) return false;
         const me = e as MouseEvent;
         if (e.type === 'mousedown' || e.type === 'touchstart') {
           // Lasso tool / Shift-drag draw a selection; pressing a bubble drags it. Neither pans.
@@ -583,6 +588,48 @@ export class Engine {
     this.overlay.avoid = rects;
   }
 
+  /** Logical stage size: what a slide's frame records. */
+  size(): Frame {
+    return { width: this.width, height: this.height };
+  }
+
+  /** The stage is shown CSS-scaled by `s`: keep bubbles crisp and pointer maths right. */
+  setDisplayScale(s: number) {
+    const scale = Number.isFinite(s) && s > 0 ? s : 1;
+    if (scale === this.displayScale) return;
+    this.displayScale = scale;
+    this.overlay.displayScale = scale;
+    this.renderer.setPixelRatio(Math.min(window.devicePixelRatio || 1, 2) * Math.min(Math.max(scale, 1), 2));
+  }
+
+  /**
+   * Offset for a new note: as given if the note (estimated size) fits on screen
+   * clear of the legend, else mirrored horizontally, vertically or both.
+   * The result is stored, so the note then looks the same everywhere.
+   */
+  fitNoteOffset(anchor: AnnotationAnchor, dx: number, dy: number): [number, number] {
+    const p = this.placeAnchor(anchor);
+    if (!p.visible) return [dx, dy];
+    const W = 170;
+    const H = 48;
+    const M = 10;
+    const fits = (ox: number, oy: number) => {
+      const x0 = ox >= 0 ? p.x + ox - 4 : p.x + ox - W - 4;
+      const x1 = x0 + W + 8;
+      const y0 = oy >= 0 ? p.y + oy - 6 : p.y + oy - H;
+      const y1 = y0 + H + 8;
+      if (x0 < M || y0 < M || x1 > this.width - M || y1 > this.height - M) return false;
+      return !this.overlay.avoid.some((r) => x0 < r.x + r.w && x1 > r.x && y0 < r.y + r.h && y1 > r.y);
+    };
+    const options: [number, number][] = [
+      [dx, dy],
+      [-dx, dy],
+      [dx, -dy],
+      [-dx, -dy],
+    ];
+    return options.find(([ox, oy]) => fits(ox, oy)) ?? [dx, dy];
+  }
+
   // ---------------------------------------------------------------------------
   // t-SNE
 
@@ -741,10 +788,14 @@ export class Engine {
     if (p >= 1) this.cameraTween = null;
   }
 
+  /** Picks up a container size change immediately (layout size, not the CSS-scaled size). */
+  syncSize() {
+    this.resize();
+  }
+
   private resize() {
-    const rect = this.container.getBoundingClientRect();
-    const w = Math.max(1, Math.round(rect.width));
-    const h = Math.max(1, Math.round(rect.height));
+    const w = Math.max(1, Math.round(this.container.clientWidth));
+    const h = Math.max(1, Math.round(this.container.clientHeight));
     if (w === this.width && h === this.height) return;
     const camera = this.cameraState();
     const dx = (w - this.width) / 2;
@@ -763,8 +814,9 @@ export class Engine {
 
   private toWorld(clientX: number, clientY: number) {
     const rect = this.container.getBoundingClientRect();
-    const sx = clientX - rect.left;
-    const sy = clientY - rect.top;
+    const s = this.displayScale;
+    const sx = (clientX - rect.left) / s;
+    const sy = (clientY - rect.top) / s;
     return { x: (sx - this.transform.x) / this.transform.k, y: (sy - this.transform.y) / this.transform.k };
   }
 
