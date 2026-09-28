@@ -97,7 +97,8 @@ export type AnnotationAnchor =
   /** A lasso selection: the note circles whichever of these rows are visible. */
   | { kind: 'rows'; rows: number[] }
   /** Free anchors are stored in normalised viewport coords so they survive resizes. */
-  | { kind: 'free'; x: number; y: number };
+  /** Canvas position, normalised to the plot area ('plot') or, in older decks, the whole stage. */
+  | { kind: 'free'; x: number; y: number; space?: 'stage' | 'plot' };
 
 export interface Annotation {
   id: string;
@@ -115,6 +116,9 @@ export interface Annotation {
   highlight?: boolean;
   /** Paint highlighted bubbles one colour (null/undefined = keep their encoded colours). */
   highlightColor?: string | null;
+  /** Stage size the note was placed at: dx, dy and fontSize are in this frame's
+   *  units and scale with the stage (window resizes). Missing = fixed pixels. */
+  frame?: Frame;
 }
 
 /** Zoom state, stored relative to the viewport: (cx, cy) is the normalised

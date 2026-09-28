@@ -3,6 +3,7 @@ import { rowLabel } from '../data/format';
 import { Engine, type HoverInfo } from '../engine/Engine';
 import type { Frame } from '../state/types';
 import { fitFrame } from './frame';
+import { withoutHistory } from '../state/history';
 import { getEngine as getEngineSafe, setEngine } from '../engine/instance';
 import { readThemeColors } from '../engine/palette';
 import {
@@ -10,7 +11,8 @@ import {
   clearSelection,
   setSelection,
   setCamera,
-  setNotePlacer,
+  setNoteContext,
+  withNoteFrames,
   setTsneCoords,
   setViewText,
   updateAnnotation,
@@ -72,7 +74,7 @@ export function Stage() {
         const s = useStore.getState();
         if (s.mode !== 'edit' || !s.table) return;
         if (s.tool === 'text') {
-          addAnnotation({ kind: 'free', x: click.nx, y: click.ny }, 'Text', '', 0, {
+          addAnnotation({ kind: 'free', x: click.px, y: click.py, space: 'plot' }, 'Text', '', 0, {
             style: 'text',
             dx: 0,
             dy: 0,
@@ -81,7 +83,7 @@ export function Stage() {
         } else if (s.tool === 'annotate') {
           if (click.row !== null)
             addAnnotation({ kind: 'point', row: click.row }, rowLabel(s.table, click.row));
-          else addAnnotation({ kind: 'free', x: click.nx, y: click.ny }, 'Note');
+          else addAnnotation({ kind: 'free', x: click.px, y: click.py, space: 'plot' }, 'Note');
           set({ tool: 'select' });
         } else if (s.editingAnnotationId) {
           set({ editingAnnotationId: null });
@@ -107,7 +109,19 @@ export function Stage() {
       },
     });
     setEngine(engine);
-    setNotePlacer((anchor, dx, dy) => engine.fitNoteOffset(anchor, dx, dy));
+    setNoteContext({
+      place: (anchor, dx, dy) => engine.fitNoteOffset(anchor, dx, dy),
+      frame: () => engine.size(),
+    });
+    // Notes from before they carried a frame: adopt the current stage size, so they
+    // scale with the window from here on (not an undoable edit).
+    const adoptNoteFrames = () => {
+      const st = useStore.getState();
+      if (st.mode !== 'edit' || st.view.annotations.every((a) => a.frame)) return;
+      const size = engine.size();
+      if (size.width < 50 || size.height < 50) return;
+      withoutHistory(() => set({ view: withNoteFrames(st.view, size) }));
+    };
     engine.setTheme(readThemeColors());
     const s = useStore.getState();
     engine.setTool(s.tool);
@@ -115,6 +129,7 @@ export function Stage() {
     engine.setCategoryColors(s.categoryColors);
     engine.setTable(s.table, s.view);
     engine.setSelection(s.selection);
+    adoptNoteFrames();
 
     const unsubscribe = useStore.subscribe((next, prev) => {
       // Colours first, so a freshly loaded deck lays out with its own palette.
@@ -124,10 +139,11 @@ export function Stage() {
       if (next.tool !== prev.tool) engine.setTool(next.tool);
       if (next.motion !== prev.motion) engine.setMotion(next.motion);
       if (next.selection !== prev.selection || next.table !== prev.table) engine.setSelection(next.selection);
+      if (next.view.annotations !== prev.view.annotations || next.mode !== prev.mode) adoptNoteFrames();
     });
     return () => {
       unsubscribe();
-      setNotePlacer(null);
+      setNoteContext(null);
       engine.dispose();
       setEngine(null);
     };

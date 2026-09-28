@@ -71,6 +71,7 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
    - Drag a note to reposition it; double-click it to edit. Notes fade in and out quickly as they appear and disappear (including between slides).
    - Press **T** (or use the text tool) to place a plain **text box** anywhere, with no dot or line.
    - Each note has its own **font size**: S, M, L, XL or 2XL.
+   - Notes are responsive: when the window (and so the stage) is resized, a note's font size and its offset from its anchor scale with the stage, and notes placed on empty space keep their place within the chart area.
    - **Highlight these points** in the note editor keeps the annotated bubbles in colour (or a colour you pick) and greys out everything else. This also appears in presentations and exports.
 4. **Select with a lasso.**
    - Press **L** (or use the lasso tool), or hold **Shift** and drag in the normal tool, to draw around bubbles. Shift adds to the selection.

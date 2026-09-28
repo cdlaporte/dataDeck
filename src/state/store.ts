@@ -199,7 +199,10 @@ export function loadDataset(
 ) {
   const overrides = opts.overrides ?? {};
   const table = buildTable(dataset, overrides);
-  const slides = opts.slides ?? [];
+  // Notes saved before they carried a frame take their slide's frame.
+  const slides = (opts.slides ?? []).map((s) =>
+    s.frame && s.view.annotations.some((a) => !a.frame) ? { ...s, view: withNoteFrames(s.view, s.frame) } : s,
+  );
   const first = slides[0];
   set({
     dataset,
@@ -378,12 +381,26 @@ export function setViewText(patch: Partial<Pick<ViewState, 'title' | 'caption'>>
   updateView((v) => ({ ...v, ...patch }));
 }
 
-type NotePlacer = (anchor: Annotation['anchor'], dx: number, dy: number) => [number, number];
-let notePlacer: NotePlacer | null = null;
+/** What the stage tells the store about placing new notes. */
+export interface NoteContext {
+  /** Picks an on-screen side for a new callout. */
+  place(anchor: Annotation['anchor'], dx: number, dy: number): [number, number];
+  /** Current logical stage size (stamped on notes so they scale with the stage). */
+  frame(): Frame;
+}
+let noteContext: NoteContext | null = null;
 
-/** Registers how new callouts pick an on-screen side (the stage engine provides it). */
-export function setNotePlacer(fn: NotePlacer | null) {
-  notePlacer = fn;
+export function setNoteContext(ctx: NoteContext | null) {
+  noteContext = ctx;
+}
+
+/** Gives frame-less notes a frame, so they scale from here on (older decks). */
+export function withNoteFrames(view: ViewState, frame: Frame | undefined): ViewState {
+  if (!frame || view.annotations.every((a) => a.frame)) return view;
+  return {
+    ...view,
+    annotations: view.annotations.map((a) => (a.frame ? a : { ...a, frame: { ...frame } })),
+  };
 }
 
 /**
@@ -405,11 +422,15 @@ export function addAnnotation(
   let dx = (k % 2 === 0 ? 1 : -1) * (60 + reach);
   let dy = (k % 4 < 2 ? -1 : 1) * (50 + reach);
   // Pick the side once, when placing; the stored offset is then used everywhere.
-  if (notePlacer && extra.style !== 'text' && extra.dx === undefined && extra.dy === undefined)
-    [dx, dy] = notePlacer(anchor, dx, dy);
+  if (noteContext && extra.style !== 'text' && extra.dx === undefined && extra.dy === undefined)
+    [dx, dy] = noteContext.place(anchor, dx, dy);
+  const frame = noteContext?.frame();
   updateView((v) => ({
     ...v,
-    annotations: [...v.annotations, { id, anchor, dx, dy, title, text, ...extra }],
+    annotations: [
+      ...v.annotations,
+      { id, anchor, dx, dy, title, text, ...(frame ? { frame } : {}), ...extra },
+    ],
   }));
   set({ editingAnnotationId: id });
   return id;

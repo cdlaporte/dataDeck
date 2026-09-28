@@ -28,6 +28,8 @@ export interface AnnotationPlacement {
   y: number;
   r: number;
   visible: boolean;
+  /** Stage size relative to the note's own frame: offsets and fonts are multiplied by it. */
+  scale: number;
 }
 
 type NoteElement = SVGGElement & {
@@ -388,8 +390,10 @@ export class Overlay {
       const drag = node.__drag;
       // Notes sit exactly at their stored offset (WYSIWYG across editor, previews
       // and presentation). Keeping clear of edges happens once, when a note is placed.
-      const dx = drag?.dx ?? a.dx;
-      const dy = drag?.dy ?? a.dy;
+      // Offsets and fonts are in the note's frame units and scale with the stage.
+      const s = d.scale || 1;
+      const dx = (drag?.dx ?? a.dx) * s;
+      const dy = (drag?.dy ?? a.dy) * s;
       const isText = a.style === 'text';
       // Inline opacity (not a class) so exports, which carry no stylesheet, respect it;
       // the CSS transition on .annotation turns changes into quick fades.
@@ -399,8 +403,9 @@ export class Overlay {
       );
 
       // Rebuild the text only when content, size, style or side changes.
-      const bodySize = a.fontSize ?? DEFAULT_NOTE_SIZE;
-      const titleSize = bodySize + 1;
+      const round = (v: number) => Math.round(v * 100) / 100;
+      const bodySize = round((a.fontSize ?? DEFAULT_NOTE_SIZE) * s);
+      const titleSize = round(((a.fontSize ?? DEFAULT_NOTE_SIZE) + 1) * s);
       const side = isText ? 'text' : `${dx >= 0 ? 'r' : 'l'}${dy >= 0 ? 'b' : 't'}`;
       const version = `${a.title}\u0000${a.text}\u0000${side}\u0000${bodySize}`;
       const text = g.select<SVGTextElement>('text.note-text');
@@ -410,16 +415,16 @@ export class Overlay {
         const titleFont = `600 ${titleSize}px ${FONT}`;
         const bodyFont = `${bodySize}px ${FONT}`;
         // Wrap width grows with the font so big text doesn't become a narrow column.
-        const maxW = Math.min(520, (NOTE_WIDTH * bodySize) / 13);
+        const maxW = Math.min(520 * s, (NOTE_WIDTH * bodySize) / 13);
         const lines: { t: string; title: boolean }[] = [
           ...(a.title ? wrapText(a.title, titleFont, maxW).map((t) => ({ t, title: true })) : []),
           ...(a.text ? wrapText(a.text, bodyFont, maxW).map((t) => ({ t, title: false })) : []),
         ];
         const anchor = isText || dx >= 0 ? 'start' : 'end';
-        const lineH = Math.round(bodySize * 1.35);
+        const lineH = round(bodySize * 1.35);
         const total = lines.length * lineH;
         // Text boxes hang below their origin; callouts sit below/above the rule.
-        const y0 = isText ? titleSize : dy >= 0 ? lineH + 2 : -6 - total + lineH - 4;
+        const y0 = isText ? titleSize : dy >= 0 ? lineH + 2 * s : -6 * s - total + lineH - 4 * s;
         lines.forEach((l, i) => {
           text
             .append('tspan')
@@ -475,7 +480,8 @@ export class Overlay {
       __drag?: { dx: number; dy: number };
     };
     const start = { x: e.clientX, y: e.clientY, dx: d.annotation.dx, dy: d.annotation.dy };
-    const scale = this.displayScale || 1;
+    // Drag offsets stay in the note's frame units (screen px ÷ stage and note scale).
+    const scale = (this.displayScale || 1) * (d.scale || 1);
     let moved = false;
     const move = (ev: PointerEvent) => {
       const dx = start.dx + (ev.clientX - start.x) / scale;

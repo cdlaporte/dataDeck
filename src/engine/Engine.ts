@@ -31,6 +31,7 @@ import { Renderer, type Transform } from './Renderer';
 import { Simulation } from './Simulation';
 import { buildTsneInput } from './tsne';
 import { pointInPolygon } from './lasso';
+import { noteScale } from './noteScale';
 import { MOTION, TickClock, easeInOutCubic, type MotionParams, type MotionPreset } from './motion';
 import type { TsneRequest, TsneResponse } from './tsne.worker';
 
@@ -64,6 +65,9 @@ export interface ClickInfo {
   /** Normalised viewport position of the click in world space. */
   nx: number;
   ny: number;
+  /** Click position normalised to the plot area (free notes anchor here). */
+  px: number;
+  py: number;
   clientX: number;
   clientY: number;
 }
@@ -961,6 +965,7 @@ export class Engine {
       row: hit >= 0 ? hit : null,
       nx: w.x / this.width,
       ny: w.y / this.height,
+      ...this.toPlotSpace(w.x, w.y),
       clientX: e.clientX,
       clientY: e.clientY,
     });
@@ -1087,11 +1092,16 @@ export class Engine {
 
   private placeAnnotations(): AnnotationPlacement[] {
     if (!this.view) return [];
-    return this.view.annotations.map((a) => ({ annotation: a, ...this.placeAnchor(a.anchor) }));
+    const stage = this.size();
+    return this.view.annotations.map((a) => ({
+      annotation: a,
+      ...this.placeAnchor(a.anchor),
+      scale: noteScale(a.frame, stage),
+    }));
   }
 
   /** Screen position and subject radius of an annotation anchor. */
-  private placeAnchor(anchor: AnnotationAnchor): Omit<AnnotationPlacement, 'annotation'> {
+  private placeAnchor(anchor: AnnotationAnchor): Omit<AnnotationPlacement, 'annotation' | 'scale'> {
     const hidden = { x: 0, y: 0, r: 0, visible: false };
     const table = this.table;
     if (!table) return hidden;
@@ -1113,9 +1123,25 @@ export class Engine {
       if (!circle) return hidden;
       return { x: circle.x * t.k + t.x, y: circle.y * t.k + t.y, r: circle.r * t.k + 6, visible: true };
     }
-    const wx = anchor.x * this.width;
-    const wy = anchor.y * this.height;
+    let wx = anchor.x * this.width;
+    let wy = anchor.y * this.height;
+    if (anchor.space === 'plot') {
+      const rect = this.basePlotRect();
+      wx = rect.left + anchor.x * rect.width;
+      wy = rect.top + anchor.y * rect.height;
+    }
     return { x: wx * t.k + t.x, y: wy * t.k + t.y, r: 3, visible: true };
+  }
+
+  /** The chart area free notes are positioned in, so they track the chart as the stage resizes. */
+  private basePlotRect() {
+    const legend = !!(this.view?.encoding.color || this.view?.encoding.size);
+    return plotRect({ width: this.width, height: this.height }, {}, legend);
+  }
+
+  private toPlotSpace(wx: number, wy: number): { px: number; py: number } {
+    const rect = this.basePlotRect();
+    return { px: (wx - rect.left) / rect.width, py: (wy - rect.top) / rect.height };
   }
 
   /** On-screen radius of an anchor's subject circle (used to place new notes outside it). */

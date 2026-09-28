@@ -571,3 +571,79 @@ test('notes stay exactly where they were snapshotted, in presentation and previe
   expect((await measure()).scale).toBeCloseTo(1);
   expect(errors).toEqual([]);
 });
+
+test('notes scale with the window', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByText('Iris flowers').click();
+  await page.locator('.field-name', { hasText: 'species' }).click();
+  await settle(page);
+  const stageBox = (await page.locator('.stage').boundingBox())!;
+  await page.keyboard.press('a');
+  await page.mouse.click(stageBox.x + stageBox.width * 0.4, stageBox.y + stageBox.height * 0.45);
+  await page.getByLabel('Annotation title').fill('Scales');
+  await page
+    .getByRole('group', { name: 'Font size' })
+    .getByRole('button', { name: 'L', exact: true })
+    .click();
+  await page.getByRole('button', { name: 'Done' }).click();
+
+  const read = () =>
+    page.evaluate(() => {
+      const g = document.querySelector('g.annotation:not(.leaving)')!;
+      const t = g.querySelector('g.annotation-note')!.getAttribute('transform')!;
+      const [nx, ny] = t.match(/-?[\d.]+/g)!.map(Number);
+      const c = g.querySelector('circle.subject')!;
+      const size = (
+        (window as unknown as Hooks).__datadeck.engine() as unknown as {
+          size(): { width: number; height: number };
+        }
+      ).size();
+      // Free notes sit in the plot area (margins as in plotRect, with a legend).
+      const small = size.width < 640;
+      const [ml, mr, mt, mb] = small ? [20, 20, 72, 72] : [48, 200, 108, 84];
+      const plotX = (Number(c.getAttribute('cx')) - ml) / (size.width - ml - mr);
+      const plotY = (Number(c.getAttribute('cy')) - mt) / (size.height - mt - mb);
+      return {
+        plot: [plotX, plotY],
+        off: [nx - Number(c.getAttribute('cx')), ny - Number(c.getAttribute('cy'))],
+        font: Number(g.querySelector('tspan')!.getAttribute('font-size')),
+        size,
+      };
+    });
+  const big = await read();
+  expect(big.font).toBe(19);
+  const note = (await state(page)).view.annotations[0];
+  expect(note.frame).toEqual(big.size);
+  expect(note.anchor).toMatchObject({ kind: 'free', space: 'plot' });
+
+  await page.setViewportSize({ width: 1100, height: 700 });
+  await expect.poll(async () => (await read()).size.width).toBeLessThan(big.size.width - 50);
+  await settle(page, 30);
+  const small = await read();
+  const s = Math.min(small.size.width / big.size.width, small.size.height / big.size.height);
+  expect(small.font / big.font).toBeCloseTo(s, 1);
+  expect(small.off[0] / big.off[0]).toBeCloseTo(s, 1);
+  expect(small.off[1] / big.off[1]).toBeCloseTo(s, 1);
+  // The anchor keeps its place within the chart area.
+  expect(small.plot[0]).toBeCloseTo(big.plot[0], 2);
+  expect(small.plot[1]).toBeCloseTo(big.plot[1], 2);
+
+  // Dragging at the small size stores offsets in the note's own frame units.
+  const nb = (await page.locator('g.annotation-note').first().boundingBox())!;
+  await page.mouse.move(nb.x + 8, nb.y + 4);
+  await page.mouse.down();
+  await page.mouse.move(nb.x + 28, nb.y + 4, { steps: 4 });
+  await page.mouse.up();
+  const moved = (await state(page)).view.annotations[0];
+  expect(moved.dx - note.dx).toBeCloseTo(20 / s, 0);
+  expect(moved.fontSize).toBe(18);
+
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await expect.poll(async () => (await read()).size.width).toBe(big.size.width);
+  await settle(page, 30);
+  const back = await read();
+  expect(back.font).toBe(19);
+  expect(back.off[0]).toBeCloseTo(moved.dx, 0);
+  expect(errors).toEqual([]);
+});
