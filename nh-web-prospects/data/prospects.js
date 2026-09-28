@@ -44,7 +44,7 @@ window.PROSPECTS = {
       "designDirection": "Heritage barbershop: deep navy, oxblood red, cream; barber-pole stripe motif; condensed/slab or classic serif display; 'Est. 1947' seal; strong walk-in + hours emphasis.",
       "priority": "A",
       "site": "sites/chucks-barber-shop/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook message → then stop in (walk-ins, Tue–Sat)",
         "subject": "A website for Chuck's — 1947 to today",
@@ -90,7 +90,7 @@ window.PROSPECTS = {
       "designDirection": "Warm retro country diner: tomato red, mustard, cream, checkerboard accents; friendly rounded display serif; hand-drawn coffee mug / chowder bowl SVGs; big 'Cash only' and 'Fish Friday' callouts.",
       "priority": "A",
       "site": "sites/stubbys-diner/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook message → or stop in (Mon–Sat, 6am–1pm)",
         "subject": "Your corn chowder deserves its own website",
@@ -137,7 +137,7 @@ window.PROSPECTS = {
       "designDirection": "Heritage farm: field green, corn yellow, barn red, parchment; hand-drawn botanical/linework SVGs (corn, strawberry, Highland cow); seasonal 'what's picking' calendar; 'Since 1744 · 9 generations' seal.",
       "priority": "A",
       "site": "sites/mcquesten-farm/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook/Instagram message → or phone",
         "subject": "Since 1744 — a website to match",
@@ -184,7 +184,7 @@ window.PROSPECTS = {
       "designDirection": "Playful woodland: pine green, bark brown, warm flour cream, a pop of sunset orange; big friendly Bigfoot footprint + loaf SVGs; chunky rounded display type; 'The Bread Shed' feature; custom-order CTA via email.",
       "priority": "A",
       "site": "sites/bigfoot-sourdough/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Email: Bigfootsourdough@gmail.com",
         "subject": "A home for the Bread Shed menu (free concept inside)",
@@ -230,7 +230,7 @@ window.PROSPECTS = {
       "designDirection": "Refined atelier: ivory, blush, charcoal, thin gold rule lines; elegant high-contrast serif (e.g. Cormorant) + clean sans; needle-and-thread line SVG, dress form silhouette; bridal section front and centre.",
       "priority": "A",
       "site": "sites/helens-tailoring/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Phone (Tue–Fri) → or stop in at 1205 Elm St",
         "subject": "Brides are searching for you — free website concept",
@@ -277,7 +277,7 @@ window.PROSPECTS = {
       "designDirection": "Vibrant and warm: palm green, marigold, terracotta, deep indigo; bold geometric textile-inspired patterns as borders/backgrounds (tasteful, not clip-art); confident grotesk display type; product-category grid with SVG icons; Beatrice's story section.",
       "priority": "A",
       "site": "sites/mercy-of-god-african-market/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook message → or stop in at 167 Elm St",
         "subject": "A website for Mercy of God African Market",
@@ -325,7 +325,7 @@ window.PROSPECTS = {
       "designDirection": "Balkan warmth: deep red, cobalt blue, cream, black; folk-embroidery / kilim-inspired geometric ornament; characterful serif display; 'Dobro došli' greeting; bread + coffee (džezva) SVGs.",
       "priority": "A",
       "site": "sites/bosna-store/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Stop in (Tue–Sun, 10–5) → or phone",
         "subject": "Dobro došli — a website for Bosna Store",
@@ -371,7 +371,7 @@ window.PROSPECTS = {
       "designDirection": "Calm luxe spa: soft lavender, honey gold, warm white, deep plum text; airy layout, elegant serif + light sans; botanical lavender sprig and honey-drip SVGs; signature pedicure feature cards.",
       "priority": "A",
       "site": "sites/house-of-nails-spa/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook message → or phone",
         "subject": "An upgrade for houseofnailspa.wordpress.com",
@@ -417,7 +417,7 @@ window.PROSPECTS = {
       "designDirection": "Bold neighborhood pizzeria: cherry red, Aegean blue, oven-warm cream, charcoal; energetic condensed display type; cherry + pizza slice SVG mascot, subtle Greek key border; big 'Call to order' CTA; menu categories without prices; gluten-free badge.",
       "priority": "A",
       "site": "sites/cherry-village-pizza/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Facebook message → or phone (Mon–Sat)",
         "subject": "Take back your menu from the copycat sites",
@@ -465,7 +465,7 @@ window.PROSPECTS = {
       "designDirection": "Friendly and fresh: soft teal, coral, butter yellow, warm white; rounded geometric sans; playful but clean SVG dog + cat duo (big & small!); 'open-concept' trust section; booking CTA.",
       "priority": "B",
       "site": "sites/big-n-small-pet-grooming/index.html",
-      "hasPreview": false,
+      "hasPreview": true,
       "outreach": {
         "channel": "Phone → or Facebook message",
         "subject": "A website as friendly as your salon (free concept)",

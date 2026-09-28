@@ -3,7 +3,7 @@
 Generated from `data/outreach.json` — edit that file and re-run `node tools/build.mjs`.
 
 Before sending: replace `[Your Name]`, `YOUR STUDIO`, and the contact/address placeholders; attach the
-site's `preview-desktop.png` (or `preview-mobile.png`); and confirm the business is still open.
+site's `preview-desktop.jpg` (or `preview-mobile.jpg`); and confirm the business is still open.
 Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use the channel listed
 (Facebook message, phone, or stopping in) — the same text works as a Facebook message.
 
@@ -15,7 +15,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook message → then stop in (walk-ins, Tue–Sat)
 - **Phone:** (603) 882-3711
-- **Attach:** `sites/chucks-barber-shop/preview-desktop.png`
+- **Attach:** `sites/chucks-barber-shop/preview-desktop.jpg`
 
 **Subject:** A website for Chuck's — 1947 to today
 
@@ -37,7 +37,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook message → or stop in (Mon–Sat, 6am–1pm)
 - **Phone:** (603) 483-5581
-- **Attach:** `sites/stubbys-diner/preview-desktop.png`
+- **Attach:** `sites/stubbys-diner/preview-desktop.jpg`
 
 **Subject:** Your corn chowder deserves its own website
 
@@ -59,7 +59,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook/Instagram message → or phone
 - **Phone:** (603) 424-9268
-- **Attach:** `sites/mcquesten-farm/preview-desktop.png`
+- **Attach:** `sites/mcquesten-farm/preview-desktop.jpg`
 
 **Subject:** Since 1744 — a website to match
 
@@ -81,7 +81,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Email: Bigfootsourdough@gmail.com
 - **Phone:** (603) 801-6265 · **Email:** Bigfootsourdough@gmail.com
-- **Attach:** `sites/bigfoot-sourdough/preview-desktop.png`
+- **Attach:** `sites/bigfoot-sourdough/preview-desktop.jpg`
 
 **Subject:** A home for the Bread Shed menu (free concept inside)
 
@@ -103,7 +103,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Phone (Tue–Fri) → or stop in at 1205 Elm St
 - **Phone:** (603) 669-0775
-- **Attach:** `sites/helens-tailoring/preview-desktop.png`
+- **Attach:** `sites/helens-tailoring/preview-desktop.jpg`
 
 **Subject:** Brides are searching for you — free website concept
 
@@ -125,7 +125,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook message → or stop in at 167 Elm St
 - **Phone:** (603) 858-3126
-- **Attach:** `sites/mercy-of-god-african-market/preview-desktop.png`
+- **Attach:** `sites/mercy-of-god-african-market/preview-desktop.jpg`
 
 **Subject:** A website for Mercy of God African Market
 
@@ -147,7 +147,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Stop in (Tue–Sun, 10–5) → or phone
 - **Phone:** (603) 935-8560
-- **Attach:** `sites/bosna-store/preview-desktop.png`
+- **Attach:** `sites/bosna-store/preview-desktop.jpg`
 
 **Subject:** Dobro došli — a website for Bosna Store
 
@@ -169,7 +169,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook message → or phone
 - **Phone:** (603) 818-4254
-- **Attach:** `sites/house-of-nails-spa/preview-desktop.png`
+- **Attach:** `sites/house-of-nails-spa/preview-desktop.jpg`
 
 **Subject:** An upgrade for houseofnailspa.wordpress.com
 
@@ -191,7 +191,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Facebook message → or phone (Mon–Sat)
 - **Phone:** (603) 329-7556
-- **Attach:** `sites/cherry-village-pizza/preview-desktop.png`
+- **Attach:** `sites/cherry-village-pizza/preview-desktop.jpg`
 
 **Subject:** Take back your menu from the copycat sites
 
@@ -213,7 +213,7 @@ Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use
 
 - **Reach via:** Phone → or Facebook message
 - **Phone:** (603) 943-7956
-- **Attach:** `sites/big-n-small-pet-grooming/preview-desktop.png`
+- **Attach:** `sites/big-n-small-pet-grooming/preview-desktop.jpg`
 
 **Subject:** A website as friendly as your salon (free concept)
 

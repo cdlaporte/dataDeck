@@ -61,7 +61,7 @@ real, premium small-business site, not a template.
 ## Quality check (required)
 
 Screenshot tool: `nh-web-prospects/tools/screenshot.mjs <slug>` (writes
-`preview-desktop.png`, `preview-mobile.png`, `thumb.png` into the site folder and
+`preview-desktop.jpg`, `preview-mobile.jpg`, `thumb.jpg` into the site folder and
 prints an overflow check). Other agents build sites in parallel, so to avoid npm
 races install Playwright in **your own** scratch dir, copy the script there and run
 it with `SITES_DIR=/home/user/dataDeck/nh-web-prospects/sites node screenshot.mjs <slug>`.
@@ -71,7 +71,7 @@ After building, screenshot each site with Playwright (Chromium is pre-installed;
 If the `playwright` package isn't resolvable, `npm i --no-save playwright` inside
 a scratch dir or use the repo's `@playwright/test` from `/home/user/dataDeck/node_modules`.
 Take full-page shots at 1440px and 390px wide, save them to
-`sites/<slug>/preview-desktop.png` and `sites/<slug>/preview-mobile.png`, then LOOK
+`sites/<slug>/preview-desktop.jpg` and `sites/<slug>/preview-mobile.jpg`, then LOOK
 at them (Read the PNGs) and fix anything off: overflow, cramped spacing, awkward
 wrapping, weak contrast, broken illustrations. Iterate at least once. Also confirm
 `document.documentElement.scrollWidth <= window.innerWidth` at 390px.
