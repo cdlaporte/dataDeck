@@ -20,7 +20,7 @@
 }
 *,*::before,*::after{box-sizing:border-box}
 html{scroll-behavior:smooth;-webkit-text-size-adjust:100%}
-body{margin:0;background:var(--ivory);color:var(--charcoal);font:300 1.0625rem/1.75 var(--sans);overflow-x:hidden;letter-spacing:.005em}
+body{margin:0;background:var(--ivory);color:var(--charcoal);font:300 1.0625rem/1.75 var(--sans);overflow-x:hidden;letter-spacing:.005em;font-variant-numeric:lining-nums}
 svg{display:block;max-width:100%}
 a{color:inherit}
 a:focus-visible,button:focus-visible{outline:2px solid var(--gold-text);outline-offset:4px}
@@ -177,8 +177,8 @@ section{scroll-margin-top:96px}
 .fb:hover{border-color:var(--gold)}
 .fb svg{width:18px;height:18px}
 
-.cta{text-align:center;padding:40px 0 128px;background:radial-gradient(ellipse 50% 80% at 50% 100%,var(--blush) 0,rgba(241,221,213,0) 70%)}
-.cta h2{max-width:16ch;margin:0 auto 20px;font-size:clamp(2.4rem,4.6vw,3.8rem);font-weight:400}
+.cta{text-align:center;padding:40px 0 128px;background:radial-gradient(ellipse 90% 70% at 50% 100%,var(--blush) 0,rgba(241,221,213,0) 70%)}
+.cta h2{max-width:20ch;margin:0 auto 20px;font-size:clamp(2.4rem,4.6vw,3.8rem);font-weight:400}
 .cta .big-phone{display:inline-block;font:italic 400 clamp(2.2rem,5vw,3.4rem)/1 var(--serif);color:var(--gold-text);text-decoration:none;margin:12px 0 36px;border-bottom:1px solid var(--gold);padding-bottom:6px}
 .cta .cta-row{justify-content:center}
 
@@ -187,6 +187,7 @@ footer{background:var(--charcoal);color:#CFC4B9;padding:64px 0 56px;font-size:.9
 footer .brand{color:var(--ivory)}
 footer .brand small{color:var(--gold-soft)}
 footer a{color:#EDE4DA}
+.foot>a:last-child{display:inline-flex;align-items:center;min-height:44px}
 .fine{border-top:1px solid rgba(228,210,174,.2);margin-top:40px;padding-top:24px;font-size:.82rem;color:#A99E93;letter-spacing:.02em}
 
 .badge{position:fixed;left:16px;bottom:16px;z-index:60;display:flex;align-items:center;gap:6px;background:rgba(42,38,39,.9);color:#F3ECE4;font:400 .72rem/1 var(--sans);letter-spacing:.04em;padding:6px 6px 6px 14px;border-radius:999px;box-shadow:0 6px 18px rgba(0,0,0,.18)}
@@ -259,6 +260,7 @@ footer a{color:#EDE4DA}
   .rev{border-right:0;border-bottom:1px solid rgba(134,101,47,.35);padding:28px 12px}
   .rev:last-child{border-bottom:0}
   .card{padding:36px 28px}
+  .photo-ph{outline-offset:8px}
   .card .phone{font-size:1.9rem}
   .hours th{font-size:1.2rem}
   .hours th,.hours td{padding:13px 8px}
