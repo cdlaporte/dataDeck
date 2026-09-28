@@ -217,7 +217,7 @@ code { font-size: .92em; background: var(--surface-2); padding: 1px 5px; border-
     <article class="card">
       <a class="thumb" href="${esc(p.site)}" target="_blank" rel="noopener" aria-label="Open ${esc(p.name)} concept">
         <span class="ph">Preview not generated yet</span>
-        <img src="sites/${esc(p.slug)}/thumb.png" alt="" loading="lazy" onerror="this.remove()" />
+        <img src="sites/${esc(p.slug)}/thumb.jpg" alt="" loading="lazy" onerror="this.remove()" />
       </a>
       <div class="card-body">
         <div class="meta">${esc(p.category)} · ${esc(p.town)}</div>
@@ -226,7 +226,7 @@ code { font-size: .92em; background: var(--surface-2); padding: 1px 5px; border-
         <p class="pitch">${esc(p.pitchAngle)}</p>
         <div class="actions">
           <a class="btn primary" href="${esc(p.site)}" target="_blank" rel="noopener">Open concept</a>
-          <a class="btn" href="sites/${esc(p.slug)}/preview-mobile.png" target="_blank" rel="noopener">Mobile view</a>
+          <a class="btn" href="sites/${esc(p.slug)}/preview-mobile.jpg" target="_blank" rel="noopener">Mobile view</a>
           <button class="btn" type="button" data-draft="${esc(p.slug)}">Outreach draft</button>
         </div>
       </div>
@@ -278,7 +278,7 @@ code { font-size: .92em; background: var(--surface-2); padding: 1px 5px; border-
     if (t) {
       current = P.find((p) => p.slug === t.dataset.draft);
       $('#dlgTitle').textContent = current.name;
-      $('#dlgMeta').textContent = 'Reach via: ' + current.outreach.channel + ' · Attach sites/' + current.slug + '/preview-desktop.png';
+      $('#dlgMeta').textContent = 'Reach via: ' + current.outreach.channel + ' · Attach sites/' + current.slug + '/preview-desktop.jpg';
       $('#dlgSubject').textContent = 'Subject: ' + current.outreach.subject;
       $('#dlgBody').textContent = current.outreach.body;
       const mail = $('#dlgMail');

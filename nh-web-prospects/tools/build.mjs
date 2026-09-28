@@ -18,7 +18,7 @@ const prospects = data.prospects.map((p) => {
   return {
     ...p,
     site: `sites/${p.slug}/index.html`,
-    hasPreview: existsSync(join(root, 'sites', p.slug, 'thumb.png')),
+    hasPreview: existsSync(join(root, 'sites', p.slug, 'thumb.jpg')),
     outreach: { ...msg, body: `${msg.body}\n\n${outreach.signature}` },
   };
 });
@@ -66,7 +66,7 @@ const md = [
   `Generated from \`data/outreach.json\` — edit that file and re-run \`node tools/build.mjs\`.`,
   '',
   'Before sending: replace `[Your Name]`, `YOUR STUDIO`, and the contact/address placeholders; attach the',
-  "site's `preview-desktop.png` (or `preview-mobile.png`); and confirm the business is still open.",
+  "site's `preview-desktop.jpg` (or `preview-mobile.jpg`); and confirm the business is still open.",
   'Only one prospect (Bigfoot Sourdough) publicly lists an email. For the rest, use the channel listed',
   '(Facebook message, phone, or stopping in) — the same text works as a Facebook message.',
   '',
@@ -79,7 +79,7 @@ const md = [
     '',
     `- **Reach via:** ${p.outreach.channel}`,
     `- **Phone:** ${p.phone}${p.email ? ` · **Email:** ${p.email}` : ''}`,
-    `- **Attach:** \`sites/${p.slug}/preview-desktop.png\``,
+    `- **Attach:** \`sites/${p.slug}/preview-desktop.jpg\``,
     '',
     `**Subject:** ${p.outreach.subject}`,
     '',

@@ -38,7 +38,7 @@ directly, email it, or drop the folder on any static host later.
 | `index.html` | Prospect board (gallery + client list + tracker) |
 | `client-list.csv` | Full client list (10 prospects + 8 backups) for Excel / Google Sheets |
 | `outreach/emails.md` | Personalized outreach message per business + a phone/walk-in script |
-| `sites/<slug>/` | Concept site + `preview-desktop.png`, `preview-mobile.png`, `thumb.png` |
+| `sites/<slug>/` | Concept site + `preview-desktop.jpg`, `preview-mobile.jpg`, `thumb.jpg` |
 | `data/prospects.json` | Research data: the single source of truth |
 | `data/outreach.json` | Outreach copy |
 | `DESIGN_BRIEF.md` | Design rules every concept follows |
