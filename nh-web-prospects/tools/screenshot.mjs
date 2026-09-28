@@ -34,6 +34,8 @@ for (const slug of slugs) {
         await route.abort();
       }
     });
+    // Freeze the clock on a Thursday morning (every business is open then) so "Open today" badges look right.
+    await page.clock.setFixedTime(new Date('2026-10-01T10:30:00'));
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await page.goto(url, { waitUntil: 'networkidle' }).catch(() => page.goto(url));
     await page.evaluate(() => document.fonts.ready);
