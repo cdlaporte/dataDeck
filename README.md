@@ -59,11 +59,16 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
    - **Colour** by any field (categorical palette or sequential ramp) and **size** by a quantitative field.
    - **Log** toggles beside quantitative axis fields spread out skewed data. Fields with zeros or negatives use a symmetric log.
    - **Let bubbles overlap** turns collisions off, so each bubble sits exactly on its value (1D numeric, 2D and t-SNE).
+   - **Reference line** (None / Mean / Median) draws the statistic of the visible rows on continuous axes:
+     - 1D numeric: one line across the beeswarm
+     - scatter: one line for each axis
+     - strip plot (a categorical axis): one line **per category**, each labelled with its own value
+     - lines respect filters and log axes, and are saved with the slide
    - **Drag a field** from the Data panel onto the stage. Drop it on the **X axis** or **Y axis** zone (switching to 2D if needed), on **Color**, or in the middle to **show it on its own**.
 3. **Annotate.**
    - Press **A**, or use the note tool, then click a bubble, a group label or empty space.
    - Notes are anchored to a data point, a category group or a canvas position, so they follow the data as it moves.
-   - Drag a note to reposition it; double-click it to edit.
+   - Drag a note to reposition it; double-click it to edit. Notes fade in and out quickly as they appear and disappear (including between slides).
    - Press **T** (or use the text tool) to place a plain **text box** anywhere, with no dot or line.
    - Each note has its own **font size**: S, M, L, XL or 2XL.
    - **Highlight these points** in the note editor keeps the annotated bubbles in colour (or a colour you pick) and greys out everything else. This also appears in presentations and exports.
@@ -85,13 +90,14 @@ You can also:
 - choose the **Motion** preset at the bottom of the View panel: **Calm**, **Balanced** or **Lively**
 - hover a bubble for its details
 - click a legend entry to hide or show that category
+- click a legend **colour swatch** to give that category a custom colour (palette, extra colours or any colour). Custom colours apply to the whole deck, every slide and both themes. **Reset colors** in the legend restores the palette
 
 Press **⌘/Ctrl+F** to find a row by name (or any text or category value). Enter selects it, and Shift+Enter selects every match. From there you can keep it, exclude it, or annotate and highlight it.
-Undo and redo (**⌘/Ctrl+Z**, **⇧⌘/Ctrl+Shift+Z**) cover view edits, filters, annotations and slides.
+Undo and redo (**⌘/Ctrl+Z**, **⇧⌘/Ctrl+Shift+Z**) cover view edits, filters, annotations, colours and slides.
 
 Decks autosave to IndexedDB. **Export** offers three formats:
 
-- a self-contained `.datadeck.json` file (dataset, field types and slides); **Open** loads one back, or a new CSV/TSV
+- a self-contained `.datadeck.json` file (dataset, field types, custom colours and slides); **Open** loads one back, or a new CSV/TSV
 - a **PDF** with one page per slide
 - a **PNG** of the current view
 

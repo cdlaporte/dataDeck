@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getEngine } from '../engine/instance';
 import { MOTION_LABEL, type MotionPreset } from '../engine/motion';
-import { overlapAllowed } from '../engine/layouts';
+import { overlapAllowed, referenceAvailable } from '../engine/layouts';
 import { isNumericType } from '../data/profile';
 import {
   dimensionFields,
@@ -10,9 +10,10 @@ import {
   setLayout,
   setOverlap,
   setLayoutMode,
+  setReference,
   useStore,
 } from '../state/store';
-import type { LayoutMode, LayoutSpec, TsneParams } from '../state/types';
+import type { DataTable, LayoutMode, LayoutSpec, ReferenceKind, TsneParams } from '../state/types';
 import { FieldSelect, Slider, TypeBadge } from './controls';
 import {
   Icon1D,
@@ -116,6 +117,9 @@ export function ViewPanel() {
                 <span>Let bubbles overlap</span>
               </label>
             )}
+            {referenceAvailable(layout, table) && (
+              <ReferenceControl layout={layout} table={table} value={view.reference} />
+            )}
           </div>
         </section>
 
@@ -151,6 +155,49 @@ export function ViewPanel() {
         <MotionSection />
       </div>
     </aside>
+  );
+}
+
+const REFERENCE_OPTIONS: [string, ReferenceKind | null][] = [
+  ['None', null],
+  ['Mean', 'mean'],
+  ['Median', 'median'],
+];
+
+/** Mean / median reference lines; per category when one 2D axis is categorical. */
+function ReferenceControl({
+  layout,
+  table,
+  value,
+}: {
+  layout: LayoutSpec;
+  table: DataTable;
+  value: ReferenceKind | undefined;
+}) {
+  const numeric = (f: string) => {
+    const t = table.fieldByName[f]?.type;
+    return !!t && isNumericType(t);
+  };
+  const perCategory = layout.mode === '2d' && numeric(layout.x) !== numeric(layout.y);
+  return (
+    <div className="field-row reference-row">
+      <label className="label">
+        Reference line
+        {perCategory && <span className="label-hint"> · one per category</span>}
+      </label>
+      <div className="segmented mini" role="group" aria-label="Reference line">
+        {REFERENCE_OPTIONS.map(([label, kind]) => (
+          <button
+            key={label}
+            type="button"
+            aria-pressed={(value ?? null) === kind}
+            onClick={() => setReference(kind)}
+          >
+            {label}
+          </button>
+        ))}
+      </div>
+    </div>
   );
 }
 

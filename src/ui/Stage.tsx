@@ -86,10 +86,13 @@ export function Stage() {
     const s = useStore.getState();
     engine.setTool(s.tool);
     engine.setMotion(s.motion);
+    engine.setCategoryColors(s.categoryColors);
     engine.setTable(s.table, s.view);
     engine.setSelection(s.selection);
 
     const unsubscribe = useStore.subscribe((next, prev) => {
+      // Colours first, so a freshly loaded deck lays out with its own palette.
+      if (next.categoryColors !== prev.categoryColors) engine.setCategoryColors(next.categoryColors);
       if (next.table !== prev.table) engine.setTable(next.table, next.view);
       else if (next.view !== prev.view) engine.setView(next.view, { animateCamera: true });
       if (next.tool !== prev.tool) engine.setTool(next.tool);

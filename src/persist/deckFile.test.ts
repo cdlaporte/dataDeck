@@ -9,6 +9,7 @@ describe('deck file', () => {
     name: 'Test',
     dataset: { id: 'd1', name: 'x', source: 'upload', columns: ['a'], rows: [{ a: '1' }] },
     fieldOverrides: { a: 'categorical' },
+    categoryColors: { a: { '1': '#123abc' } },
     slides: [
       {
         id: 's1',
@@ -16,6 +17,7 @@ describe('deck file', () => {
         view: {
           ...defaultView(),
           title: 'Hello',
+          reference: 'median',
           layout: {
             mode: 'tsne',
             fields: ['a'],
@@ -29,6 +31,14 @@ describe('deck file', () => {
 
   it('round-trips', () => {
     expect(parseDeck(serializeDeck(deck))).toEqual(deck);
+  });
+
+  it('loads older decks without colours and drops malformed ones', () => {
+    const { categoryColors: _omit, ...old } = deck;
+    void _omit;
+    expect(parseDeck(serializeDeck(old as Deck)).categoryColors).toEqual({});
+    const bad = { ...deck, categoryColors: { a: { '1': 'red; x', '2': '#00ff00' }, b: 5 } };
+    expect(parseDeck(JSON.stringify(bad)).categoryColors).toEqual({ a: { '2': '#00ff00' } });
   });
 
   it('rejects other files', () => {

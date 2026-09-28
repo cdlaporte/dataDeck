@@ -35,6 +35,7 @@ export async function initPersistence() {
       s.dataset !== prev.dataset ||
       s.slides !== prev.slides ||
       s.fieldOverrides !== prev.fieldOverrides ||
+      s.categoryColors !== prev.categoryColors ||
       s.deckName !== prev.deckName;
     if (!changed) return;
     if (timer) clearTimeout(timer);

@@ -1,7 +1,13 @@
 import { Engine } from '../engine/Engine';
 import { getEngine } from '../engine/instance';
 import { readThemeColors } from '../engine/palette';
-import { sanitizeView, setSlideThumbnail, useStore } from '../state/store';
+import { sanitizeView, setSlideThumbnail, slideStyleKey, thumbnailStyleKey, useStore } from '../state/store';
+
+/** How previews should currently look: theme plus custom colours. */
+function currentStyle() {
+  const theme = readThemeColors();
+  return { theme, key: thumbnailStyleKey(theme.name, useStore.getState().categoryColors) };
+}
 
 /** Collision relaxation after jumping bubbles onto their targets. */
 const RELAX_TICKS = 160;
@@ -10,7 +16,7 @@ let running = false;
 let again = false;
 
 /**
- * Redraws slide previews whose theme doesn't match the current one, using a
+ * Redraws slide previews drawn in another theme or with other custom colours, using a
  * hidden offscreen engine so the live stage is never disturbed.
  */
 export function refreshThumbnails() {
@@ -30,8 +36,8 @@ export function refreshThumbnails() {
 
 async function redrawStale() {
   const start = useStore.getState();
-  const theme = readThemeColors();
-  const stale = start.slides.filter((s) => s.thumbnailTheme !== theme.name);
+  const { theme, key } = currentStyle();
+  const stale = start.slides.filter((s) => slideStyleKey(s) !== key);
   if (!start.table || !stale.length) return;
 
   const live = getEngine()?.container.getBoundingClientRect();
@@ -43,10 +49,11 @@ async function redrawStale() {
   const engine = new Engine(host, {}, { headless: true });
   try {
     engine.setTheme(theme);
+    engine.setCategoryColors(start.categoryColors);
     for (const slide of stale) {
       const s = useStore.getState();
-      // Stop if the data changed or the theme flipped again (a new run follows).
-      if (s.table !== start.table || readThemeColors().name !== theme.name) break;
+      // Stop if the data, theme or colours changed again (a new run follows).
+      if (s.table !== start.table || currentStyle().key !== key) break;
       const current = s.slides.find((x) => x.id === slide.id);
       if (!current || !s.table) continue;
       const view = sanitizeView(current.view, s.table);
@@ -55,7 +62,7 @@ async function redrawStale() {
       engine.jumpToTargets();
       engine.settle(RELAX_TICKS);
       const thumbnail = await engine.captureThumbnail(view.title);
-      if (thumbnail) setSlideThumbnail(slide.id, thumbnail, theme.name);
+      if (thumbnail) setSlideThumbnail(slide.id, thumbnail, theme.name, key);
       // Yield between slides so the UI stays responsive.
       await new Promise((r) => setTimeout(r, 0));
     }
@@ -66,7 +73,7 @@ async function redrawStale() {
   }
 }
 
-/** Keeps previews in the current theme: after theme changes and when decks load. */
+/** Keeps previews current: after theme or colour changes and when decks load. */
 export function initThumbnailRefresh() {
   let timer: ReturnType<typeof setTimeout> | null = null;
   const schedule = () => {
@@ -74,9 +81,10 @@ export function initThumbnailRefresh() {
     timer = setTimeout(refreshThumbnails, 400);
   };
   useStore.subscribe((s, prev) => {
-    if (s.slides === prev.slides && s.table === prev.table) return;
-    const theme = readThemeColors().name;
-    if (s.slides.some((sl) => sl.thumbnailTheme !== theme)) schedule();
+    if (s.slides === prev.slides && s.table === prev.table && s.categoryColors === prev.categoryColors)
+      return;
+    const { key } = currentStyle();
+    if (s.slides.some((sl) => slideStyleKey(sl) !== key)) schedule();
   });
   schedule();
   return schedule;

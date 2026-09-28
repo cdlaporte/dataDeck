@@ -135,7 +135,14 @@ export interface ViewState {
   caption: string;
   /** Collisions off: bubbles sit exactly on their values and may overlap. */
   overlap?: boolean;
+  /** Mean / median reference lines on continuous axes (per category in strip plots). */
+  reference?: ReferenceKind;
 }
+
+export type ReferenceKind = 'mean' | 'median';
+
+/** Custom colours per category: field → category value → hex colour. */
+export type CategoryColors = Record<string, Record<string, string>>;
 
 export interface Slide {
   id: string;
@@ -143,6 +150,8 @@ export interface Slide {
   thumbnail: string | null;
   /** Theme the thumbnail was drawn in (redrawn when the app theme changes). */
   thumbnailTheme?: 'light' | 'dark';
+  /** Theme plus custom-colour signature the thumbnail was drawn with (supersedes thumbnailTheme). */
+  thumbnailStyle?: string;
 }
 
 export interface Deck {
@@ -151,6 +160,8 @@ export interface Deck {
   name: string;
   dataset: Dataset | null;
   fieldOverrides: Record<string, FieldType>;
+  /** Deck-wide custom category colours (optional; older files have none). */
+  categoryColors?: CategoryColors;
   slides: Slide[];
 }
 

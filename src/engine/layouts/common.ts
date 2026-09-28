@@ -10,9 +10,10 @@ import {
   type ScaleSymLog,
   type ScaleTime,
 } from 'd3-scale';
+import { format } from 'd3-format';
 import { formatDate, formatNumber } from '../../data/format';
 import { MISSING_KEY } from '../../data/filters';
-import type { DataTable, FieldMeta } from '../../state/types';
+import type { DataTable, FieldMeta, ReferenceKind } from '../../state/types';
 
 export interface Viewport {
   width: number;
@@ -43,6 +44,20 @@ export interface AxisGuide {
   grid: boolean;
 }
 
+/** A mean / median reference line, in world coordinates. */
+export interface RefGuide {
+  /** Axis the value is measured on: 'x' draws a vertical line, 'y' a horizontal one. */
+  axis: 'x' | 'y';
+  /** Position of the line along its axis. */
+  pos: number;
+  /** Extent of the line on the cross axis. */
+  from: number;
+  to: number;
+  label: string;
+  /** Per-category segment in a strip plot (shorter, value-only label). */
+  lane?: boolean;
+}
+
 export interface GroupInfo {
   field: string;
   keys: string[];
@@ -63,6 +78,8 @@ export interface LayoutResult {
   radiusScale: number;
   xAxis?: AxisGuide;
   yAxis?: AxisGuide;
+  /** Mean / median reference lines. */
+  refs?: RefGuide[];
   /** Groups whose labels float under their live clusters. */
   groups?: GroupInfo;
   /** Short status line shown on the stage (e.g. hidden-row count). */
@@ -78,6 +95,8 @@ export interface LayoutInput {
   viewport: Viewport;
   /** Unscaled target radii per row. */
   radii: Float32Array;
+  /** Draw mean / median reference lines where the layout supports them. */
+  reference?: ReferenceKind;
 }
 
 export const MAX_GROUPS = 24;
@@ -97,7 +116,7 @@ export function plotRect(vp: Viewport, opts: PlotOptions = {}, legend = false): 
   const left = opts.yAxis ? (small ? 24 : 40) + yLabel + 12 : small ? 20 : 48;
   const right = legend && !small ? 200 : small ? 20 : 48;
   const top = small ? 72 : 108;
-  const bottom = opts.xAxis ? (small ? 96 : 128) : small ? 72 : 84;
+  const bottom = opts.xAxis ? (small ? 102 : 136) : small ? 72 : 84;
   const width = Math.max(40, vp.width - left - right);
   const height = Math.max(40, vp.height - top - bottom);
   return {
@@ -113,7 +132,7 @@ export function plotRect(vp: Viewport, opts: PlotOptions = {}, legend = false): 
 }
 
 /** Rough label width without DOM measurement (keeps layouts pure). */
-export function estimateLabelWidth(labels: string[], px = 11.5): number {
+export function estimateLabelWidth(labels: string[], px = 13): number {
   let max = 0;
   for (const l of labels) max = Math.max(max, l.length);
   return max * px * 0.58;
@@ -382,3 +401,44 @@ export function hiddenMessage(hidden: number, field: string): string | undefined
 export function formatAxisValue(meta: FieldMeta, v: number): string {
   return meta.type === 'date' ? formatDate(v, meta.dateUnit) : formatNumber(v, meta);
 }
+
+// ---------------------------------------------------------------------------
+// Reference statistics
+
+/** Mean or median of `values` over the rows in `rows` (non-finite values skipped); NaN when empty. */
+export function statistic(values: ArrayLike<number>, rows: Iterable<number>, kind: ReferenceKind): number {
+  const xs: number[] = [];
+  for (const i of rows) {
+    const v = values[i];
+    if (Number.isFinite(v)) xs.push(v);
+  }
+  if (!xs.length) return NaN;
+  if (kind === 'mean') {
+    let sum = 0;
+    for (const v of xs) sum += v;
+    return sum / xs.length;
+  }
+  xs.sort((a, b) => a - b);
+  const mid = xs.length >> 1;
+  return xs.length % 2 ? xs[mid] : (xs[mid - 1] + xs[mid]) / 2;
+}
+
+/** Row indices where `mask` is set (and, with `lanes`, whose lane equals `lane`). */
+export function* maskedRows(mask: Uint8Array, lanes?: Int32Array, lane?: number): Generator<number> {
+  for (let i = 0; i < mask.length; i++) if (mask[i] && (!lanes || lanes[i] === lane)) yield i;
+}
+
+const statThousands = format(',.0f');
+const statHundreds = format(',.1~f');
+
+/** Label text for a reference value: dates as dates; decimals shrink as magnitudes grow. */
+export function formatStat(meta: FieldMeta, v: number): string {
+  if (meta.type === 'date') return formatDate(v, meta.dateUnit);
+  const a = Math.abs(v);
+  if (a >= 1e6) return formatNumber(v);
+  if (a >= 1000) return statThousands(v);
+  if (a >= 100) return statHundreds(v);
+  return formatNumber(v);
+}
+
+export const REFERENCE_NAME: Record<ReferenceKind, string> = { mean: 'Mean', median: 'Median' };

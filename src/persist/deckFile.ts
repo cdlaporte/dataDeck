@@ -1,4 +1,4 @@
-import type { Deck } from '../state/types';
+import type { CategoryColors, Deck } from '../state/types';
 
 export const DECK_EXTENSION = '.datadeck.json';
 
@@ -30,8 +30,23 @@ export function parseDeck(text: string): Deck {
     name: typeof d.name === 'string' ? d.name : 'Untitled deck',
     dataset: ds ?? null,
     fieldOverrides: d.fieldOverrides ?? {},
+    categoryColors: cleanColors(d.categoryColors),
     slides: d.slides,
   };
+}
+
+/** Keeps only well-formed field → value → colour string entries. */
+function cleanColors(raw: unknown): CategoryColors {
+  const out: CategoryColors = {};
+  if (!raw || typeof raw !== 'object') return out;
+  for (const [field, values] of Object.entries(raw as Record<string, unknown>)) {
+    if (!values || typeof values !== 'object') continue;
+    const entries = Object.entries(values as Record<string, unknown>).filter(
+      (e): e is [string, string] => typeof e[1] === 'string' && /^#[0-9a-f]{3,8}$/i.test(e[1]),
+    );
+    if (entries.length) out[field] = Object.fromEntries(entries);
+  }
+  return out;
 }
 
 export function downloadDeck(deck: Deck) {

@@ -1,8 +1,10 @@
-import { useLayoutEffect, useRef } from 'react';
+import * as Popover from '@radix-ui/react-popover';
+import { useLayoutEffect, useRef, useState } from 'react';
 import { anchorRows } from '../engine/encodings';
 import { getEngine } from '../engine/instance';
 import { formatAxisValue } from '../engine/layouts/common';
-import { useStore } from '../state/store';
+import { CATEGORICAL, readThemeColors } from '../engine/palette';
+import { resetCategoryColors, setCategoryColor, useStore } from '../state/store';
 import { toggleCategory } from './actions';
 
 export function Legend() {
@@ -66,20 +68,41 @@ export function Legend() {
               const isOther = item.label.startsWith('Other (');
               const off = excluded.has(item.label);
               return (
-                <button
-                  key={item.label}
-                  type="button"
-                  className={`legend-item${off ? ' off' : ''}`}
-                  disabled={presenting || isOther}
-                  title={presenting || isOther ? undefined : off ? 'Show' : 'Hide'}
-                  onClick={() => toggleCategory(color.field, item.label)}
-                >
-                  <i className="swatch" style={{ background: item.color }} />
-                  <span>{item.label}</span>
-                </button>
+                <div key={item.label} className={`legend-row${off ? ' off' : ''}`}>
+                  {presenting || isOther ? (
+                    <span className="legend-swatch-btn" aria-hidden="true">
+                      <i className="swatch" style={{ background: item.color }} />
+                    </span>
+                  ) : (
+                    <ColorPicker
+                      field={color.field}
+                      value={item.label}
+                      color={item.color}
+                      custom={!!item.custom}
+                    />
+                  )}
+                  <button
+                    type="button"
+                    className={`legend-item${off ? ' off' : ''}`}
+                    disabled={presenting || isOther}
+                    title={presenting || isOther ? undefined : off ? 'Show' : 'Hide'}
+                    onClick={() => toggleCategory(color.field, item.label)}
+                  >
+                    <span>{item.label}</span>
+                  </button>
+                </div>
               );
             })}
           </div>
+          {!presenting && color.items.some((i) => i.custom) && (
+            <button
+              type="button"
+              className="link legend-reset"
+              onClick={() => resetCategoryColors(color.field)}
+            >
+              Reset colors
+            </button>
+          )}
         </div>
       )}
       {color.kind === 'sequential' && (
@@ -115,5 +138,88 @@ export function Legend() {
         </div>
       )}
     </aside>
+  );
+}
+
+/** A few extra hues beyond the categorical palette. */
+const EXTRA_COLORS = ['#1f2937', '#7c8594', '#0e9aa7', '#a0522d'];
+
+/** Legend swatch that opens a colour picker for one category (deck-wide). */
+function ColorPicker({
+  field,
+  value,
+  color,
+  custom,
+}: {
+  field: string;
+  value: string;
+  color: string;
+  custom: boolean;
+}) {
+  const [open, setOpen] = useState(false);
+  const choices = [...CATEGORICAL[readThemeColors().name], ...EXTRA_COLORS];
+  const current = color.toLowerCase();
+  return (
+    <Popover.Root open={open} onOpenChange={setOpen}>
+      <Popover.Trigger asChild>
+        <button
+          type="button"
+          className="legend-swatch-btn"
+          aria-label={`Color for ${value}`}
+          title="Change color"
+        >
+          <i className="swatch" style={{ background: color }} />
+        </button>
+      </Popover.Trigger>
+      <Popover.Portal>
+        <Popover.Content
+          className="popover color-popover"
+          side="left"
+          align="start"
+          sideOffset={8}
+          aria-label={`Color for ${value}`}
+        >
+          <div className="color-popover-title">{value}</div>
+          <div className="swatch-row" role="group" aria-label="Colors">
+            {choices.map((c) => (
+              <button
+                key={c}
+                type="button"
+                className="swatch-pick"
+                style={{ background: c }}
+                aria-label={`Use ${c}`}
+                aria-pressed={current === c.toLowerCase()}
+                onClick={() => {
+                  setCategoryColor(field, value, c);
+                  setOpen(false);
+                }}
+              />
+            ))}
+          </div>
+          <div className="color-popover-row">
+            <label className="color-custom">
+              <input
+                type="color"
+                aria-label="Custom color"
+                value={/^#[0-9a-f]{6}$/i.test(color) ? color : '#888888'}
+                onChange={(e) => setCategoryColor(field, value, e.target.value)}
+              />
+              Custom…
+            </label>
+            <button
+              type="button"
+              className="btn ghost small"
+              disabled={!custom}
+              onClick={() => {
+                setCategoryColor(field, value, null);
+                setOpen(false);
+              }}
+            >
+              Reset
+            </button>
+          </div>
+        </Popover.Content>
+      </Popover.Portal>
+    </Popover.Root>
   );
 }

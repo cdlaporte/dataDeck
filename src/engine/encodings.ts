@@ -1,7 +1,7 @@
 import { color as parseColor } from 'd3-color';
 import { scaleLinear, scaleSqrt } from 'd3-scale';
 import { MISSING_KEY } from '../data/filters';
-import type { Annotation, DataTable, Encoding } from '../state/types';
+import type { Annotation, CategoryColors, DataTable, Encoding } from '../state/types';
 import {
   CATEGORICAL,
   DEFAULT_COLOR,
@@ -13,7 +13,12 @@ import {
 
 export type ColorLegend =
   | { kind: 'none' }
-  | { kind: 'categorical'; field: string; items: { label: string; color: string }[] }
+  | {
+      kind: 'categorical';
+      field: string;
+      /** `custom`: the colour was picked by the user rather than the palette. */
+      items: { label: string; color: string; custom?: boolean }[];
+    }
   | {
       kind: 'sequential';
       field: string;
@@ -35,8 +40,13 @@ function hexToRgb(c: string): [number, number, number] {
 }
 
 /** Colour legend for a field. Category→colour assignment uses the full dataset
- *  order so filters never repaint surviving categories. */
-export function colorLegend(table: DataTable, field: string | null, theme: ThemeName): ColorLegend {
+ *  order so filters never repaint surviving categories; custom colours win. */
+export function colorLegend(
+  table: DataTable,
+  field: string | null,
+  theme: ThemeName,
+  overrides: CategoryColors = {},
+): ColorLegend {
   const meta = field ? table.fieldByName[field] : undefined;
   if (!field || !meta) return { kind: 'none' };
   if (meta.type === 'quantitative' || meta.type === 'date') {
@@ -54,16 +64,31 @@ export function colorLegend(table: DataTable, field: string | null, theme: Theme
   const palette = CATEGORICAL[theme];
   const overflow = cats.length > MAX_CATEGORY_COLORS;
   const named = overflow ? cats.slice(0, MAX_CATEGORY_COLORS - 1) : cats;
-  const items = named.map((c, i) => ({ label: c.value, color: palette[i] }));
+  const custom = overrides[field] ?? {};
+  const items: { label: string; color: string; custom?: boolean }[] = named.map((c, i) => ({
+    label: c.value,
+    color: custom[c.value] ?? palette[i],
+    custom: !!custom[c.value],
+  }));
   if (overflow) items.push({ label: `Other (${cats.length - named.length})`, color: NEUTRAL[theme] });
-  if (meta.missing > 0) items.push({ label: MISSING_KEY, color: NEUTRAL[theme] });
+  if (meta.missing > 0)
+    items.push({
+      label: MISSING_KEY,
+      color: custom[MISSING_KEY] ?? NEUTRAL[theme],
+      custom: !!custom[MISSING_KEY],
+    });
   return { kind: 'categorical', field, items };
 }
 
-export function computeColors(table: DataTable, encoding: Encoding, theme: ThemeName): ColorEncoding {
+export function computeColors(
+  table: DataTable,
+  encoding: Encoding,
+  theme: ThemeName,
+  overrides: CategoryColors = {},
+): ColorEncoding {
   const n = table.rowCount;
   const rgb = new Float32Array(n * 3);
-  const legend = colorLegend(table, encoding.color, theme);
+  const legend = colorLegend(table, encoding.color, theme, overrides);
   const neutral = hexToRgb(NEUTRAL[theme]);
   const put = (i: number, c: [number, number, number]) => {
     rgb[i * 3] = c[0];
@@ -79,7 +104,7 @@ export function computeColors(table: DataTable, encoding: Encoding, theme: Theme
     const lookup = new Map<string, [number, number, number]>();
     for (const item of legend.items) lookup.set(item.label, hexToRgb(item.color));
     for (let i = 0; i < n; i++) {
-      const v = col.kind === 'string' ? col.values[i] : null;
+      const v = col.kind === 'string' ? (col.values[i] ?? MISSING_KEY) : null;
       put(i, (v !== null && lookup.get(v)) || neutral);
     }
   } else {

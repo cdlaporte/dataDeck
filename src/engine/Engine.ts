@@ -3,7 +3,14 @@ import { select } from 'd3-selection';
 import { zoom as d3zoom, zoomIdentity, type D3ZoomEvent, type ZoomBehavior } from 'd3-zoom';
 import { computeVisibility } from '../data/filters';
 import { Overlay, type AnnotationPlacement, type GroupLabel } from '../overlay/Overlay';
-import type { AnnotationAnchor, CameraState, DataTable, LayoutSpec, ViewState } from '../state/types';
+import type {
+  AnnotationAnchor,
+  CameraState,
+  CategoryColors,
+  DataTable,
+  LayoutSpec,
+  ViewState,
+} from '../state/types';
 import {
   GREYED_ALPHA,
   anchorRows,
@@ -108,6 +115,7 @@ export class Engine {
   private table: DataTable | null = null;
   private view: ViewState | null = null;
   private theme: ThemeColors | null = null;
+  private categoryColors: CategoryColors = {};
   private tool: Tool = 'select';
   private layout: LayoutResult | null = null;
   private layoutInfo: LayoutInfo | null = null;
@@ -279,6 +287,8 @@ export class Engine {
     this.view = view;
     // Title / caption / annotation / camera edits don't touch the layout.
     if (!prev || !sameLayoutInputs(prev, view)) this.recompute(true);
+    // Reference lines are guides only: refresh them without moving the bubbles.
+    else if (prev.reference !== view.reference) this.recompute(false);
     else if (highlightSignature(prev.annotations) !== highlightSignature(view.annotations))
       this.applyColors();
     const current = this.cameraState();
@@ -361,7 +371,11 @@ export class Engine {
     try {
       const clone = this.svg.cloneNode(true) as SVGSVGElement;
       clone.setAttribute('xmlns', 'http://www.w3.org/2000/svg');
-      clone.querySelectorAll('.hit, .lasso').forEach((n) => n.remove());
+      clone.querySelectorAll('.hit, .lasso, .leaving').forEach((n) => n.remove());
+      // Notes still waiting to fade in are captured fully visible.
+      clone
+        .querySelectorAll<SVGElement>('.annotation.entering[data-visible="1"]')
+        .forEach((n) => (n.style.opacity = '1'));
       const xml = new XMLSerializer().serializeToString(clone);
       const img = new Image();
       img.src = 'data:image/svg+xml;charset=utf-8,' + encodeURIComponent(xml);
@@ -456,7 +470,7 @@ export class Engine {
     const coords = view.layout.mode === 'tsne' ? this.resolveTsne(view.layout, filterMask) : this.leaveTsne();
     const layout = computeLayout(
       view.layout,
-      { table, visible: filterMask, viewport, radii, legend },
+      { table, visible: filterMask, viewport, radii, legend, reference: view.reference },
       coords,
     );
     this.layout = layout;
@@ -489,13 +503,16 @@ export class Engine {
     this.sim.setDensity(visibleCount);
     if (reheat) this.sim.reheat(transitionMs !== undefined ? REHEAT_TSNE : REHEAT_VIEW);
 
-    const colors = computeColors(table, view.encoding, this.theme.name);
+    const colors = computeColors(table, view.encoding, this.theme.name, this.categoryColors);
     this.encodedRGB = colors.rgb;
     const alpha = overlap ? 0.75 : layout.collide < 0.5 ? 0.85 : 1;
     for (let i = 0; i < n; i++) this.baseAlpha[i] = this.visible[i] ? alpha : 0;
     this.applyColors();
 
-    this.overlay.setAxes([layout.xAxis, layout.yAxis].filter((a) => !!a));
+    this.overlay.setAxes(
+      [layout.xAxis, layout.yAxis].filter((a) => !!a),
+      layout.refs ?? [],
+    );
     this.layoutInfo = {
       message: layout.message,
       visibleCount,
@@ -505,6 +522,22 @@ export class Engine {
       baseRadiusPx: base * layout.radiusScale,
     };
     this.callbacks.onLayoutInfo?.(this.layoutInfo);
+  }
+
+  /** Deck-wide custom category colours; recolours bubbles in place. */
+  setCategoryColors(colors: CategoryColors) {
+    if (colors === this.categoryColors) return;
+    this.categoryColors = colors;
+    const table = this.table;
+    const view = this.view;
+    if (!table || !view || !this.theme) return;
+    const encoded = computeColors(table, view.encoding, this.theme.name, colors);
+    this.encodedRGB = encoded.rgb;
+    this.applyColors();
+    if (this.layoutInfo) {
+      this.layoutInfo = { ...this.layoutInfo, colorLegend: encoded.legend };
+      this.callbacks.onLayoutInfo?.(this.layoutInfo);
+    }
   }
 
   /** Encoded colours + annotation highlighting → target colours. */

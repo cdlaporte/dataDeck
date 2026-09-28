@@ -425,3 +425,79 @@ test('text boxes, note font size, theme-correct previews, compact strip', async 
   await expect(page.locator('.slide-chip')).toHaveCount(2);
   expect(errors).toEqual([]);
 });
+
+test('mean / median lines, custom category colours, axis text, note fades', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByText('Iris flowers').click();
+  await expect(page.locator('.field-name', { hasText: 'petal_length' })).toBeVisible();
+  const setLayout = (layout: Record<string, unknown>) =>
+    page.evaluate((l) => {
+      const s = (window as unknown as Hooks).__datadeck.store;
+      s.setState({ view: { ...s.getState().view, layout: l } });
+    }, layout);
+  const refLabels = () => page.locator('.guide-set:not(.leaving) .ref-label');
+
+  // Strip plot: one median segment per species, then means.
+  await setLayout({ mode: '2d', x: 'petal_length', y: 'species' });
+  const reference = page.getByRole('group', { name: 'Reference line' });
+  await reference.getByRole('button', { name: 'Median' }).click();
+  await expect(refLabels()).toHaveText(['1.5', '4.35', '5.55']);
+  await expect(page.locator('.guide-set:not(.leaving) .ref.lane')).toHaveCount(3);
+  await reference.getByRole('button', { name: 'Mean' }).click();
+  await expect(refLabels()).toHaveText(['1.46', '4.26', '5.55']);
+  expect((await state(page)).view.reference).toBe('mean');
+
+  // Scatter: one line per axis. Larger axis text.
+  await setLayout({ mode: '2d', x: 'petal_length', y: 'sepal_width' });
+  await expect(refLabels()).toHaveText(['Mean 3.76', 'Mean 3.06']);
+  await expect(page.locator('.guide-set:not(.leaving) text.tick-label').first()).toHaveAttribute(
+    'font-size',
+    '13',
+  );
+  await reference.getByRole('button', { name: 'None' }).click();
+  await expect(refLabels()).toHaveCount(0);
+
+  // Custom colour for one species: legend, state and autosave; reset; undo.
+  await page.getByRole('button', { name: 'Color for virginica' }).click();
+  await page.getByRole('button', { name: 'Use #e87ba4' }).click();
+  await expect(page.getByRole('button', { name: 'Color for virginica' }).locator('.swatch')).toHaveCSS(
+    'background-color',
+    'rgb(232, 123, 164)',
+  );
+  expect((await state(page)).categoryColors).toEqual({ species: { virginica: '#e87ba4' } });
+  await page.keyboard.press('s');
+  await expect(page.locator('.slide-thumb')).toHaveCount(1);
+  expect((await state(page)).slides[0].thumbnailStyle).toMatch(/^light\|/);
+  await page.waitForTimeout(800);
+  await page.reload();
+  await expect(page.getByRole('button', { name: 'Color for virginica' }).locator('.swatch')).toHaveCSS(
+    'background-color',
+    'rgb(232, 123, 164)',
+  );
+  await page.getByRole('button', { name: 'Reset colors' }).click();
+  expect((await state(page)).categoryColors).toEqual({});
+  // The preview is redrawn without the custom colour.
+  await expect
+    .poll(async () => (await state(page)).slides[0].thumbnailStyle, { timeout: 30_000 })
+    .toBe('light');
+  await page.keyboard.press('ControlOrMeta+z');
+  expect((await state(page)).categoryColors).toEqual({ species: { virginica: '#e87ba4' } });
+
+  // Notes fade out briefly before they are removed.
+  await settle(page, 60);
+  const stage = (await page.locator('.stage').boundingBox())!;
+  await page.keyboard.press('t');
+  await page.mouse.click(stage.x + 160, stage.y + stage.height - 200);
+  await page.getByLabel('Annotation title').fill('Fading');
+  await page.getByRole('button', { name: 'Done' }).click();
+  await expect(page.locator('g.annotation')).toHaveCount(1);
+  await expect(page.locator('g.annotation')).toHaveCSS('opacity', '1');
+  await page.evaluate(() => {
+    const s = (window as unknown as Hooks).__datadeck.store;
+    s.setState({ view: { ...s.getState().view, annotations: [] } });
+  });
+  await expect(page.locator('g.annotation.leaving')).toHaveCount(1);
+  await expect(page.locator('g.annotation')).toHaveCount(0, { timeout: 1000 });
+  expect(errors).toEqual([]);
+});

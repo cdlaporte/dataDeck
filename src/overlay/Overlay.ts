@@ -1,11 +1,15 @@
 import { select, type Selection } from 'd3-selection';
 import type { Annotation } from '../state/types';
-import type { AxisGuide } from '../engine/layouts';
+import type { AxisGuide, RefGuide } from '../engine/layouts';
 import type { Transform } from '../engine/Renderer';
 import type { ThemeColors } from '../engine/palette';
 
 const FONT = "Inter, ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif";
 const NOTE_WIDTH = 200;
+const TICK_SIZE = 13;
+const AXIS_TITLE_SIZE = 14.5;
+/** Matches the CSS fade on .annotation; leaving notes are removed after it. */
+const NOTE_FADE_MS = 200;
 /** Default note body size (px); titles are 1px larger. */
 export const DEFAULT_NOTE_SIZE = 14;
 
@@ -75,6 +79,7 @@ export class Overlay {
   private lassoPath: Selection<SVGPathElement, unknown, null, undefined>;
   private current: Selection<SVGGElement, unknown, null, undefined> | null = null;
   private axes: AxisGuide[] = [];
+  private refs: RefGuide[] = [];
   private theme!: ThemeColors;
   private lastTransform = '';
   private groupField: string | null = null;
@@ -112,15 +117,19 @@ export class Overlay {
   setTheme(theme: ThemeColors) {
     this.theme = theme;
     this.lassoPath.attr('stroke', theme.accent).attr('fill', theme.accent);
-    this.setAxes(this.axes, true);
+    this.setAxes(this.axes, this.refs, true);
     this.groupLayer.selectAll('*').remove();
     this.annotationLayer.selectAll('*').remove();
   }
 
-  setAxes(axes: AxisGuide[], force = false) {
-    const same = !force && JSON.stringify(axes) === JSON.stringify(this.axes);
+  setAxes(axes: AxisGuide[], refs: RefGuide[] = [], force = false) {
+    const same =
+      !force &&
+      JSON.stringify(axes) === JSON.stringify(this.axes) &&
+      JSON.stringify(refs) === JSON.stringify(this.refs);
     if (same) return;
     this.axes = axes;
+    this.refs = refs;
     if (this.current) {
       const old = this.current;
       old.attr('class', 'guide-set leaving').style('opacity', '0');
@@ -129,6 +138,7 @@ export class Overlay {
     const g = this.guideLayer.append('g').attr('class', 'guide-set entering');
     this.current = g;
     for (const axis of axes) this.buildAxis(g, axis);
+    this.buildRefs(g, refs);
     requestAnimationFrame(() => g.attr('class', 'guide-set'));
     this.lastTransform = '';
   }
@@ -142,20 +152,87 @@ export class Overlay {
       .append('text')
       .attr('class', 'tick-label')
       .attr('fill', t.textSecondary)
-      .attr('font-size', 11.5)
+      .attr('font-size', TICK_SIZE)
       .attr('text-anchor', axis.orient === 'bottom' ? 'middle' : 'end')
       .attr('dominant-baseline', axis.orient === 'bottom' ? 'hanging' : 'middle')
       .text((d) => d.label);
     a.append('line').attr('class', 'domain').attr('stroke', t.axis).attr('stroke-width', 1);
-    const labelFont = `11.5px ${FONT}`;
+    const labelFont = `${TICK_SIZE}px ${FONT}`;
     a.attr('data-label-width', Math.max(0, ...axis.ticks.map((d) => measure(d.label, labelFont))));
     a.append('text')
       .attr('class', 'axis-title')
       .attr('fill', t.textPrimary)
-      .attr('font-size', 12.5)
+      .attr('font-size', AXIS_TITLE_SIZE)
       .attr('font-weight', 600)
       .attr('text-anchor', 'middle')
       .text(axis.title);
+  }
+
+  /** Mean / median lines: a soft halo under a line so they read over dense bubbles. */
+  private buildRefs(g: Selection<SVGGElement, unknown, null, undefined>, refs: RefGuide[]) {
+    if (!refs.length) return;
+    const t = this.theme;
+    const layer = g.append('g').attr('class', 'refs');
+    const r = layer
+      .selectAll('g.ref')
+      .data(refs)
+      .join('g')
+      .attr('class', (d) => (d.lane ? 'ref lane' : 'ref'));
+    r.append('line')
+      .attr('class', 'ref-halo')
+      .attr('stroke', t.surface)
+      .attr('stroke-opacity', 0.7)
+      .attr('stroke-width', (d) => (d.lane ? 5 : 4))
+      .attr('stroke-linecap', 'round');
+    r.append('line')
+      .attr('class', 'ref-line')
+      .attr('stroke', t.textPrimary)
+      .attr('stroke-opacity', 0.9)
+      .attr('stroke-width', (d) => (d.lane ? 2.25 : 1.5))
+      .attr('stroke-dasharray', (d) => (d.lane ? null : '6 4'))
+      .attr('stroke-linecap', 'round');
+    r.append('text')
+      .attr('class', 'ref-label')
+      .attr('fill', t.textPrimary)
+      .attr('font-size', 12)
+      .attr('font-weight', 600)
+      .attr('stroke', t.surface)
+      .attr('stroke-width', 3.5)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
+      .text((d) => d.label);
+  }
+
+  private positionRefs(sx: (v: number) => number, sy: (v: number) => number) {
+    if (!this.current) return;
+    const refs = this.current.selectAll<SVGGElement, RefGuide>('g.ref');
+    refs.each(function (d) {
+      const g = select(this);
+      let x1: number, x2: number, y1: number, y2: number;
+      const label = g.select('text.ref-label');
+      if (d.axis === 'x') {
+        // Vertical line at an x value.
+        x1 = x2 = sx(d.pos);
+        y1 = sy(d.from);
+        y2 = sy(d.to);
+        label
+          .attr('x', x1 + 6)
+          .attr('y', Math.min(y1, y2) + (d.lane ? 11 : 13))
+          .attr('text-anchor', 'start')
+          .attr('dominant-baseline', 'middle');
+      } else {
+        // Horizontal line at a y value.
+        y1 = y2 = sy(d.pos);
+        x1 = sx(d.from);
+        x2 = sx(d.to);
+        label
+          .attr('x', Math.max(x1, x2) - (d.lane ? 0 : 4))
+          .attr('y', y1 - 7)
+          .attr('text-anchor', 'end')
+          .attr('dominant-baseline', 'auto');
+      }
+      g.selectAll('line').attr('x1', x1).attr('x2', x2).attr('y1', y1).attr('y2', y2);
+    });
   }
 
   private positionAxes(t: Transform, width: number, height: number) {
@@ -165,6 +242,7 @@ export class Overlay {
     this.lastTransform = key;
     const sx = (v: number) => v * t.k + t.x;
     const sy = (v: number) => v * t.k + t.y;
+    this.positionRefs(sx, sy);
     const groups = this.current.selectAll<SVGGElement, unknown>('g[data-orient]').nodes();
     for (const [i, axis] of this.axes.entries()) {
       const a = select(groups[i]);
@@ -190,7 +268,7 @@ export class Overlay {
           .attr('opacity', axis.grid ? 1 : 0);
         a.select('text.axis-title')
           .attr('x', (r0 + r1) / 2)
-          .attr('y', y + 34);
+          .attr('y', y + 40);
       } else {
         const x = Math.max(sx(axis.cross), 40 + (Number(a.attr('data-label-width')) || 30));
         const [s0, s1] = [Math.max(0, sx(axis.span[0])), Math.min(width, sx(axis.span[1]))];
@@ -214,7 +292,7 @@ export class Overlay {
         const labelW = Number(a.attr('data-label-width')) || 30;
         a.select('text.axis-title').attr(
           'transform',
-          `translate(${Math.max(14, x - labelW - 22)},${cy}) rotate(-90)`,
+          `translate(${Math.max(14, x - labelW - 26)},${cy}) rotate(-90)`,
         );
       }
     }
@@ -235,14 +313,14 @@ export class Overlay {
         g.append('text')
           .attr('class', 'group-name')
           .attr('text-anchor', 'middle')
-          .attr('font-size', 12.5)
+          .attr('font-size', 14)
           .attr('font-weight', 600)
           .attr('fill', th.textPrimary);
         g.append('text')
           .attr('class', 'group-count')
           .attr('text-anchor', 'middle')
-          .attr('font-size', 11)
-          .attr('y', 15)
+          .attr('font-size', 12)
+          .attr('y', 17)
           .attr('fill', th.textMuted);
         g.on('click', (_e, d) => this.callbacks.onGroupClick(d.key));
         requestAnimationFrame(() => g.attr('class', 'group'));
@@ -264,7 +342,7 @@ export class Overlay {
   private updateAnnotations(placements: AnnotationPlacement[], width: number, height: number) {
     const th = this.theme;
     const sel = this.annotationLayer
-      .selectAll<SVGGElement, AnnotationPlacement>('g.annotation')
+      .selectAll<SVGGElement, AnnotationPlacement>('g.annotation:not(.leaving)')
       .data(placements, (d) => d.annotation.id)
       .join(
         (enter) => {
@@ -284,11 +362,19 @@ export class Overlay {
             e.stopPropagation();
             this.callbacks.onAnnotationEdit(d.annotation.id);
           });
-          requestAnimationFrame(() => g.attr('class', 'annotation'));
+          requestAnimationFrame(() => g.classed('entering', false));
           return g;
         },
         (update) => update,
-        (exit) => exit.remove(),
+        (exit) => {
+          // Fade out, then remove. Leaving notes are never reused: one that comes
+          // back gets a fresh element (and rebuilds its text).
+          exit.classed('leaving', true).style('opacity', '0').style('pointer-events', 'none');
+          exit.each(function () {
+            setTimeout(() => this.remove(), NOTE_FADE_MS);
+          });
+          return exit;
+        },
       );
 
     const avoid = this.avoid;
@@ -325,7 +411,12 @@ export class Overlay {
         const best = options.find(([ox, oy]) => fits(ox, oy));
         if (best) [dx, dy] = best;
       }
-      g.style('opacity', d.visible ? '1' : '0');
+      // Inline opacity (not a class) so exports, which carry no stylesheet, respect it;
+      // the CSS transition on .annotation turns changes into quick fades.
+      g.attr('data-visible', d.visible ? 1 : 0).style(
+        'opacity',
+        d.visible && !g.classed('entering') ? '1' : '0',
+      );
 
       // Rebuild the text only when content, size, style or side changes.
       const bodySize = a.fontSize ?? DEFAULT_NOTE_SIZE;

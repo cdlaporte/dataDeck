@@ -11,16 +11,21 @@ import {
   estimateLabelWidth,
   fitClusters,
   fitSwarm,
+  formatStat,
   gridFor,
   groupRows,
   hiddenMessage,
+  maskedRows,
   plotRect,
+  REFERENCE_NAME,
   scaleValue,
+  statistic,
   type LayoutInput,
   type LayoutResult,
+  type RefGuide,
 } from './common';
 
-export type { LayoutResult, AxisGuide, GroupInfo, Viewport } from './common';
+export type { LayoutResult, AxisGuide, GroupInfo, RefGuide, Viewport } from './common';
 
 /** Whether "let bubbles overlap" makes sense: layouts with at least one continuous position. */
 export function overlapAllowed(spec: LayoutSpec, table: DataTable): boolean {
@@ -31,6 +36,19 @@ export function overlapAllowed(spec: LayoutSpec, table: DataTable): boolean {
   if (spec.mode === 'tsne') return true;
   if (spec.mode === '1d') return numeric(spec.field);
   if (spec.mode === '2d') return numeric(spec.x) || numeric(spec.y);
+  return false;
+}
+
+/** Whether mean / median reference lines make sense: a continuous axis in 1D or 2D. */
+export function referenceAvailable(spec: LayoutSpec, table: DataTable): boolean {
+  const type = (f: string) => table.fieldByName[f]?.type;
+  const numeric = (f: string) => {
+    const t = type(f);
+    return !!t && isNumericType(t);
+  };
+  const usable = (f: string) => !!type(f) && type(f) !== 'text';
+  if (spec.mode === '1d') return numeric(spec.field);
+  if (spec.mode === '2d') return usable(spec.x) && usable(spec.y) && (numeric(spec.x) || numeric(spec.y));
   return false;
 }
 
@@ -113,6 +131,19 @@ function continuous1D(input: LayoutInput, meta: FieldMeta, log: boolean): Layout
   res.strengthX = 0.6;
   res.strengthY = 0.03;
   res.xAxis = continuousAxis(x, meta, 'bottom', rect.bottom, [rect.top, rect.bottom]);
+  if (input.reference) {
+    const v = statistic(col.values, maskedRows(mask), input.reference);
+    if (Number.isFinite(v))
+      res.refs = [
+        {
+          axis: 'x',
+          pos: Math.max(rect.left, Math.min(rect.right, scaleValue(x, v))),
+          from: rect.top,
+          to: rect.bottom,
+          label: `${REFERENCE_NAME[input.reference]} ${formatStat(meta, v)}`,
+        },
+      ];
+  }
   res.message = hiddenMessage(hiddenCount(visible, res.valid), meta.name);
   return res;
 }
@@ -180,10 +211,14 @@ function layout2D(
       const col = table.columns[meta.name];
       const lo = Math.min(...range);
       const hi = Math.max(...range);
+      const at = (v: number) => Math.max(lo, Math.min(hi, scaleValue(scale, v)));
       return {
-        pos: (i: number) =>
-          Math.max(lo, Math.min(hi, scaleValue(scale, col.kind === 'number' ? col.values[i] : NaN))),
+        pos: (i: number) => at(col.kind === 'number' ? col.values[i] : NaN),
+        /** Position of a data value on this axis (continuous axes only). */
+        at,
+        values: col.kind === 'number' ? col.values : null,
         lane: null as Int32Array | null,
+        centers: [] as number[],
         step: 0,
         guide: continuousAxis(scale, meta, orient, cross, span),
       };
@@ -193,7 +228,10 @@ function layout2D(
     const centers = grouping.keys.map((k) => scale(k)!);
     return {
       pos: (i: number) => (grouping.nodeGroup[i] >= 0 ? centers[grouping.nodeGroup[i]] : NaN),
+      at: null,
+      values: null,
       lane: grouping.nodeGroup,
+      centers,
       step: scale.step(),
       guide: bandAxis(scale, meta.name, orient, cross, span),
     };
@@ -208,6 +246,7 @@ function layout2D(
   }
   res.xAxis = X.guide;
   res.yAxis = Y.guide;
+  if (input.reference) res.refs = references2D(input.reference, mask, rect, [X, Y], [xm, ym]);
 
   if (xCont && yCont) {
     // Scatter: keep positions accurate, allow overlap.
@@ -240,6 +279,68 @@ function layout2D(
       .join(' or '),
   );
   return res;
+}
+
+interface AxisPlacement {
+  at: ((v: number) => number) | null;
+  values: Float64Array | Float32Array | null;
+  lane: Int32Array | null;
+  centers: number[];
+  step: number;
+}
+
+/**
+ * Reference lines for 2D layouts. Scatter: one line per continuous axis across
+ * the plot. Strip plot: one short segment per category lane at that lane's statistic.
+ */
+function references2D(
+  kind: 'mean' | 'median',
+  mask: Uint8Array,
+  rect: { left: number; right: number; top: number; bottom: number },
+  [X, Y]: [AxisPlacement, AxisPlacement],
+  [xm, ym]: [FieldMeta, FieldMeta],
+): RefGuide[] {
+  const refs: RefGuide[] = [];
+  const name = REFERENCE_NAME[kind];
+  if (X.at && Y.at) {
+    const vx = statistic(X.values!, maskedRows(mask), kind);
+    const vy = statistic(Y.values!, maskedRows(mask), kind);
+    if (Number.isFinite(vx))
+      refs.push({
+        axis: 'x',
+        pos: X.at(vx),
+        from: rect.top,
+        to: rect.bottom,
+        label: `${name} ${formatStat(xm, vx)}`,
+      });
+    if (Number.isFinite(vy))
+      refs.push({
+        axis: 'y',
+        pos: Y.at(vy),
+        from: rect.left,
+        to: rect.right,
+        label: `${name} ${formatStat(ym, vy)}`,
+      });
+    return refs;
+  }
+  const cont = X.at ? X : Y.at ? Y : null;
+  const band = X.at ? Y : X;
+  if (!cont || !band.lane) return refs;
+  const meta = X.at ? xm : ym;
+  const half = band.step * 0.4;
+  band.centers.forEach((c, k) => {
+    const v = statistic(cont.values!, maskedRows(mask, band.lane!, k), kind);
+    if (!Number.isFinite(v)) return;
+    refs.push({
+      axis: X.at ? 'x' : 'y',
+      pos: cont.at!(v),
+      from: c - half,
+      to: c + half,
+      label: formatStat(meta, v),
+      lane: true,
+    });
+  });
+  return refs;
 }
 
 function tsneLayout(

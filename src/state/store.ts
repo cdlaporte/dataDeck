@@ -2,12 +2,14 @@ import { create } from 'zustand';
 import { makeId } from '../data/parse';
 import { buildTable, isNumericType } from '../data/profile';
 import type { LayoutInfo, Tool, TsneStatus } from '../engine/Engine';
+import { referenceAvailable } from '../engine/layouts';
 import type { MotionPreset } from '../engine/motion';
 import { withoutHistory } from './history';
 import {
   DEFAULT_TSNE,
   defaultView,
   type Annotation,
+  type CategoryColors,
   type DataTable,
   type Dataset,
   type Deck,
@@ -16,6 +18,7 @@ import {
   type Filter,
   type LayoutMode,
   type LayoutSpec,
+  type ReferenceKind,
   type Slide,
   type ViewState,
 } from './types';
@@ -27,6 +30,8 @@ export interface AppState {
   dataset: Dataset | null;
   table: DataTable | null;
   fieldOverrides: Record<string, FieldType>;
+  /** Deck-wide custom category colours (field → value → hex). */
+  categoryColors: CategoryColors;
   view: ViewState;
   slides: Slide[];
   activeSlideId: string | null;
@@ -64,6 +69,7 @@ const initial: AppState = {
   dataset: null,
   table: null,
   fieldOverrides: {},
+  categoryColors: {},
   view: defaultView(),
   slides: [],
   activeSlideId: null,
@@ -153,6 +159,7 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
     if (fields.length !== l.fields.length) v.layout = { ...l, fields, coords: undefined };
   }
   if (!ok(v.encoding.color)) v.encoding.color = null;
+  if (v.reference && !referenceAvailable(v.layout, table)) delete v.reference;
   if (v.encoding.size && table.fieldByName[v.encoding.size]?.type !== 'quantitative') v.encoding.size = null;
   v.filters = v.filters.filter((f) => {
     if (f.kind === 'rows') return f.rows.every((r) => r < table.rowCount);
@@ -179,7 +186,12 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
 
 export function loadDataset(
   dataset: Dataset,
-  opts: { overrides?: Record<string, FieldType>; slides?: Slide[]; name?: string } = {},
+  opts: {
+    overrides?: Record<string, FieldType>;
+    slides?: Slide[];
+    name?: string;
+    categoryColors?: CategoryColors;
+  } = {},
 ) {
   const overrides = opts.overrides ?? {};
   const table = buildTable(dataset, overrides);
@@ -189,6 +201,7 @@ export function loadDataset(
     dataset,
     table,
     fieldOverrides: overrides,
+    categoryColors: opts.categoryColors ?? {},
     slides,
     activeSlideId: first?.id ?? null,
     view: first ? sanitizeView(first.view, table) : initialView(table),
@@ -208,6 +221,7 @@ export function closeDataset() {
     activeSlideId: null,
     view: defaultView(),
     fieldOverrides: {},
+    categoryColors: {},
     deckName: initial.deckName,
   });
 }
@@ -274,6 +288,51 @@ export function dropField(field: string, zone: DropZone) {
 
 export function setOverlap(overlap: boolean) {
   updateView((v) => ({ ...v, overlap }));
+}
+
+export function setReference(reference: ReferenceKind | null) {
+  updateView((v) => {
+    const next = { ...v };
+    if (reference) next.reference = reference;
+    else delete next.reference;
+    return next;
+  });
+}
+
+/** Sets (or with null, resets) the colour of one category of a field, deck-wide. */
+export function setCategoryColor(field: string, value: string, color: string | null) {
+  const all = get().categoryColors;
+  const forField = { ...all[field] };
+  if (color) forField[value] = color;
+  else delete forField[value];
+  const next = { ...all };
+  if (Object.keys(forField).length) next[field] = forField;
+  else delete next[field];
+  set({ categoryColors: next });
+}
+
+export function resetCategoryColors(field: string) {
+  const all = get().categoryColors;
+  if (!all[field]) return;
+  const next = { ...all };
+  delete next[field];
+  set({ categoryColors: next });
+}
+
+/**
+ * Identifies how a slide preview was drawn: the theme, plus a hash of the custom
+ * colours when there are any. Previews whose key differs get redrawn.
+ */
+export function thumbnailStyleKey(theme: 'light' | 'dark', colors: CategoryColors): string {
+  const json = JSON.stringify(colors);
+  if (json === '{}') return theme;
+  let h = 2166136261;
+  for (let i = 0; i < json.length; i++) h = Math.imul(h ^ json.charCodeAt(i), 16777619);
+  return `${theme}|${(h >>> 0).toString(36)}`;
+}
+
+export function slideStyleKey(slide: Slide): string | undefined {
+  return slide.thumbnailStyle ?? slide.thumbnailTheme;
 }
 
 export function setEncoding(patch: Partial<Encoding>) {
@@ -397,7 +456,13 @@ export function addSlide(
   thumbnailTheme?: 'light' | 'dark',
 ): Slide {
   const { slides, activeSlideId } = get();
-  const slide: Slide = { id: makeId(), view: clone(view), thumbnail, thumbnailTheme };
+  const slide: Slide = {
+    id: makeId(),
+    view: clone(view),
+    thumbnail,
+    thumbnailTheme,
+    thumbnailStyle: thumbnailTheme ? thumbnailStyleKey(thumbnailTheme, get().categoryColors) : undefined,
+  };
   const at = activeSlideId ? slides.findIndex((s) => s.id === activeSlideId) + 1 : slides.length;
   const next = [...slides];
   next.splice(at, 0, slide);
@@ -419,6 +484,10 @@ export function updateSlide(
             view: clone(view),
             thumbnail: thumbnail ?? s.thumbnail,
             thumbnailTheme: thumbnail ? thumbnailTheme : s.thumbnailTheme,
+            thumbnailStyle:
+              thumbnail && thumbnailTheme
+                ? thumbnailStyleKey(thumbnailTheme, get().categoryColors)
+                : s.thumbnailStyle,
           }
         : s,
     ),
@@ -426,9 +495,18 @@ export function updateSlide(
 }
 
 /** Replaces a slide's preview image (not an undoable edit). */
-export function setSlideThumbnail(id: string, thumbnail: string, thumbnailTheme: 'light' | 'dark') {
+export function setSlideThumbnail(
+  id: string,
+  thumbnail: string,
+  thumbnailTheme: 'light' | 'dark',
+  thumbnailStyle: string,
+) {
   withoutHistory(() =>
-    set({ slides: get().slides.map((s) => (s.id === id ? { ...s, thumbnail, thumbnailTheme } : s)) }),
+    set({
+      slides: get().slides.map((s) =>
+        s.id === id ? { ...s, thumbnail, thumbnailTheme, thumbnailStyle } : s,
+      ),
+    }),
   );
 }
 
@@ -536,6 +614,7 @@ export function toDeck(): Deck {
     name: s.deckName,
     dataset: s.dataset,
     fieldOverrides: s.fieldOverrides,
+    categoryColors: s.categoryColors,
     slides: s.slides,
   };
 }
@@ -546,7 +625,12 @@ export function loadDeck(deck: Deck) {
     set({ deckName: deck.name });
     return;
   }
-  loadDataset(deck.dataset, { overrides: deck.fieldOverrides, slides: deck.slides, name: deck.name });
+  loadDataset(deck.dataset, {
+    overrides: deck.fieldOverrides,
+    slides: deck.slides,
+    name: deck.name,
+    categoryColors: deck.categoryColors,
+  });
 }
 
 export const actions = { set, get };

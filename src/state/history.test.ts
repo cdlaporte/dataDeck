@@ -1,7 +1,17 @@
 import { beforeEach, describe, expect, it } from 'vitest';
 import { parseDelimited } from '../data/parse';
 import { clearHistory, initHistory, redo, undo } from './history';
-import { loadDataset, setCamera, setLayout, setTsneCoords, setViewText, useStore } from './store';
+import {
+  loadDataset,
+  resetCategoryColors,
+  setCamera,
+  setCategoryColor,
+  setLayout,
+  setReference,
+  setTsneCoords,
+  setViewText,
+  useStore,
+} from './store';
 
 let clock = 0;
 initHistory(useStore, () => clock);
@@ -23,6 +33,24 @@ describe('undo / redo', () => {
     expect(useStore.getState().canRedo).toBe(true);
     redo();
     expect(useStore.getState().view.layout).toEqual({ mode: '1d', field: 'mass' });
+  });
+
+  it('undoes category colour and reference line changes', () => {
+    setCategoryColor('species', 'x', '#ff0000');
+    expect(useStore.getState().categoryColors).toEqual({ species: { x: '#ff0000' } });
+    clock += 2000;
+    setLayout({ mode: '1d', field: 'mass' });
+    clock += 2000;
+    setReference('median');
+    undo();
+    expect(useStore.getState().view.reference).toBeUndefined();
+    undo();
+    undo();
+    expect(useStore.getState().categoryColors).toEqual({});
+    redo();
+    expect(useStore.getState().categoryColors.species.x).toBe('#ff0000');
+    resetCategoryColors('species');
+    expect(useStore.getState().categoryColors).toEqual({});
   });
 
   it('coalesces a burst of edits into one step', () => {

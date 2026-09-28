@@ -1,7 +1,7 @@
 import { describe, expect, it } from 'vitest';
 import { parseDelimited } from '../../data/parse';
 import { buildTable } from '../../data/profile';
-import { computeLayout } from './index';
+import { computeLayout, referenceAvailable } from './index';
 import { fitClusters, gridFor, groupRows, logTicks, plotRect } from './common';
 
 const csv = [
@@ -166,5 +166,96 @@ describe('log scales', () => {
     expect(logTicks(1, 1000, false)).toEqual([1, 10, 100, 1000]);
     expect(logTicks(2, 30, false)).toEqual([2, 5, 10, 20]);
     expect(logTicks(-100, 100, true)).toEqual([-100, -10, -1, 0, 1, 10, 100]);
+  });
+});
+
+describe('reference lines', () => {
+  // Group p: 1.5, 2.5, 9.5 (mean 4.5, median 2.5); group q: 10.5, 20.5 (15.5 either way).
+  const refData = parseDelimited(
+    [
+      'name,team,score,other',
+      'a,p,1.5,0.25',
+      'b,p,2.5,1.75',
+      'c,p,9.5,2.25',
+      'd,q,10.5,3.75',
+      'e,q,20.5,5.25',
+    ].join('\n'),
+    'r',
+  );
+  const refTable = buildTable(refData);
+  const m = refTable.rowCount;
+  const base = {
+    table: refTable,
+    visible: new Uint8Array(m).fill(1),
+    viewport,
+    radii: new Float32Array(m).fill(5),
+  };
+
+  it('draws one line at the median / mean in 1D', () => {
+    const med = computeLayout({ mode: '1d', field: 'score' }, { ...base, reference: 'median' }, null);
+    expect(med.refs).toHaveLength(1);
+    expect(med.refs![0].axis).toBe('x');
+    expect(med.refs![0].pos).toBeCloseTo(med.tx[2]);
+    expect(med.refs![0].label).toBe('Median 9.5');
+    const mean = computeLayout({ mode: '1d', field: 'score' }, { ...base, reference: 'mean' }, null);
+    expect(mean.refs![0].label).toBe('Mean 8.9');
+    const off = computeLayout({ mode: '1d', field: 'score' }, base, null);
+    expect(off.refs).toBeUndefined();
+  });
+
+  it('positions the statistic with the log scale', () => {
+    const res = computeLayout(
+      { mode: '1d', field: 'score', log: true },
+      { ...base, reference: 'median' },
+      null,
+    );
+    expect(res.refs![0].pos).toBeCloseTo(res.tx[2]);
+  });
+
+  it('draws x and y lines in a scatter', () => {
+    const res = computeLayout({ mode: '2d', x: 'score', y: 'other' }, { ...base, reference: 'median' }, null);
+    expect(res.refs?.map((r) => r.axis)).toEqual(['x', 'y']);
+    expect(res.refs![0].pos).toBeCloseTo(res.tx[2]);
+    expect(res.refs![1].pos).toBeCloseTo(res.ty[2]);
+  });
+
+  it('draws one segment per category in a strip plot (horizontal lanes)', () => {
+    const res = computeLayout({ mode: '2d', x: 'score', y: 'team' }, { ...base, reference: 'median' }, null);
+    const refs = res.refs!;
+    expect(refs).toHaveLength(2);
+    expect(refs.every((r) => r.lane && r.axis === 'x')).toBe(true);
+    expect(refs[0].pos).toBeCloseTo(res.tx[1]); // p: 2.5
+    expect(refs[1].pos).toBeCloseTo((res.tx[3] + res.tx[4]) / 2); // q: 15.5
+    expect((refs[0].from + refs[0].to) / 2).toBeCloseTo(res.ty[0]);
+    expect(refs.map((r) => r.label)).toEqual(['2.5', '15.5']);
+    const mean = computeLayout({ mode: '2d', x: 'score', y: 'team' }, { ...base, reference: 'mean' }, null);
+    // Linear axis: 4.5 sits 3/8 of the way from 1.5 to 9.5.
+    expect(mean.refs![0].pos).toBeCloseTo(mean.tx[0] + (mean.tx[2] - mean.tx[0]) * (3 / 8));
+  });
+
+  it('draws per-category segments in vertical strip plots and respects filters', () => {
+    const visible = Uint8Array.from([1, 1, 0, 1, 1]);
+    const res = computeLayout(
+      { mode: '2d', x: 'team', y: 'score' },
+      { ...base, visible, reference: 'median' },
+      null,
+    );
+    const refs = res.refs!;
+    expect(refs.every((r) => r.axis === 'y')).toBe(true);
+    expect(refs[0].pos).toBeCloseTo((res.ty[0] + res.ty[1]) / 2); // p without c: 2.0
+    expect(refs[0].label).toBe('2');
+    expect((refs[1].from + refs[1].to) / 2).toBeCloseTo(res.tx[3]);
+  });
+
+  it('is only offered where there is a continuous axis', () => {
+    expect(referenceAvailable({ mode: '1d', field: 'score' }, refTable)).toBe(true);
+    expect(referenceAvailable({ mode: '1d', field: 'team' }, refTable)).toBe(false);
+    expect(referenceAvailable({ mode: '2d', x: 'team', y: 'score' }, refTable)).toBe(true);
+    expect(referenceAvailable({ mode: '2d', x: 'team', y: 'team' }, refTable)).toBe(false);
+    const withText = buildTable(refData, { name: 'text' });
+    expect(referenceAvailable({ mode: '2d', x: 'name', y: 'score' }, withText)).toBe(false);
+    expect(referenceAvailable({ mode: 'cluster' }, refTable)).toBe(false);
+    const grid = computeLayout({ mode: '2d', x: 'team', y: 'team' }, { ...base, reference: 'mean' }, null);
+    expect(grid.refs ?? []).toHaveLength(0);
   });
 });

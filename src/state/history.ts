@@ -2,7 +2,7 @@ import { buildTable } from '../data/profile';
 import type { AppState } from './store';
 
 /** The undoable part of the app state: the document, not transient UI. */
-type Doc = Pick<AppState, 'view' | 'slides' | 'activeSlideId' | 'fieldOverrides'>;
+type Doc = Pick<AppState, 'view' | 'slides' | 'activeSlideId' | 'fieldOverrides' | 'categoryColors'>;
 
 const COALESCE_MS = 600;
 const LIMIT = 100;
@@ -34,6 +34,7 @@ const docOf = (s: AppState): Doc => ({
   slides: s.slides,
   activeSlideId: s.activeSlideId,
   fieldOverrides: s.fieldOverrides,
+  categoryColors: s.categoryColors,
 });
 
 /** A view change that only moved the camera (pan / zoom) is not an undo step. */
@@ -45,7 +46,8 @@ function cameraOnly(a: AppState['view'], b: AppState['view']) {
     a.annotations === b.annotations &&
     a.title === b.title &&
     a.caption === b.caption &&
-    a.overlap === b.overlap
+    a.overlap === b.overlap &&
+    a.reference === b.reference
   );
 }
 
@@ -71,7 +73,8 @@ export function initHistory(s: Store, now: () => number = () => Date.now()) {
       (next.view !== prev.view && !cameraOnly(next.view, prev.view)) ||
       next.slides !== prev.slides ||
       next.activeSlideId !== prev.activeSlideId ||
-      next.fieldOverrides !== prev.fieldOverrides;
+      next.fieldOverrides !== prev.fieldOverrides ||
+      next.categoryColors !== prev.categoryColors;
     if (!changed) return;
     const t = now();
     // Bursts (typing, dragging a slider or a note) collapse into one step.
