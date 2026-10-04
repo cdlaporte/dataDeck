@@ -34,6 +34,14 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
 | Movies          | 3,201 | Grosses, budgets, ratings, genres, release dates |
 | SaaS customers  | 5,000 | Synthetic plans, revenue, usage, churn           |
 
+### Example deck: sampling and response bias
+
+`examples/statistical-bias.datadeck.json` is a ready-made 22-slide presentation for an intro statistics class. Load it with **Open**.
+
+- It covers convenience, voluntary-response and under-coverage sampling, plus non-response, measurement, social-desirability, recall, observer, Hawthorne and interviewer bias.
+- It is built on a synthetic town of 1,000 residents whose true values are known, so each bias is shown pulling an estimate away from the truth.
+- Regenerate it with `node scripts/genBiasDeck.mjs`.
+
 ## Using it
 
 1. **Data panel (left).**

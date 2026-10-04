@@ -202,8 +202,13 @@ function layout2D(
     input.legend,
   );
 
+  // Strip plots: inset the continuous axis a little so bubbles at its ends swarm clear
+  // of the category labels instead of sitting on top of them.
+  const stripPad = (length: number) => (xCont !== yCont ? Math.min(36, length * 0.04) : 0);
   const axis = (meta: FieldMeta, cont: boolean, orient: 'bottom' | 'left') => {
-    const range: [number, number] = orient === 'bottom' ? [rect.left, rect.right] : [rect.bottom, rect.top];
+    const pad = cont ? stripPad(orient === 'bottom' ? rect.width : rect.height) : 0;
+    const range: [number, number] =
+      orient === 'bottom' ? [rect.left + pad, rect.right - pad] : [rect.bottom - pad, rect.top + pad];
     const cross = orient === 'bottom' ? rect.bottom : rect.left;
     const span: [number, number] = orient === 'bottom' ? [rect.top, rect.bottom] : [rect.left, rect.right];
     if (cont) {
