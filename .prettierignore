@@ -1,4 +1,5 @@
 dist
+dist-viewer
 node_modules
 public/samples
 src/vendor

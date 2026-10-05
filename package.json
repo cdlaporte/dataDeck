@@ -14,6 +14,8 @@
     "start": "vite",
     "prebuild": "node scripts/check-env.cjs",
     "build": "tsc -b && vite build",
+    "prebuild:viewer": "node scripts/check-env.cjs",
+    "build:viewer": "tsc -b && vite build --config vite.viewer.config.ts",
     "preview": "vite preview",
     "typecheck": "tsc -b",
     "lint": "eslint .",
