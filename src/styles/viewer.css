@@ -1,0 +1,29 @@
+/* Presenter-only viewer (present.html). */
+
+.viewer-message {
+  display: grid;
+  place-items: center;
+  height: 100%;
+  padding: 24px;
+  background: var(--bg);
+  color: var(--text-secondary);
+  text-align: center;
+}
+
+.viewer-fullscreen {
+  position: absolute;
+  bottom: 16px;
+  right: 16px;
+  z-index: 10;
+  opacity: 0.35;
+  transition: opacity 0.2s;
+}
+
+.viewer-fullscreen:hover,
+.viewer-fullscreen:focus-visible {
+  opacity: 1;
+}
+
+.app.presenting {
+  position: relative;
+}

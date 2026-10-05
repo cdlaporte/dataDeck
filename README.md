@@ -129,6 +129,29 @@ Decks autosave to IndexedDB. **Export** offers three formats:
 | `0`           | Reset zoom                              |
 | `←` `→` `Esc` | Previous / next / exit (presenting)     |
 
+## Publishing a deck (viewer only)
+
+`present.html` is a presenter-only build of DataDeck: no editor, just the slides. Use it to put finished decks on a website.
+
+```bash
+npm run build:viewer     # writes dist-viewer/ (relative paths, copy it anywhere)
+```
+
+Copy `dist-viewer/` and your exported `.datadeck.json` files to any static host, then open:
+
+```
+present.html?deck=decks/my-talk.datadeck.json
+```
+
+| Parameter | Meaning                                                           |
+| --------- | ----------------------------------------------------------------- |
+| `deck`    | URL of the `.datadeck.json` file (required)                       |
+| `slide`   | Slide number to start on (1-based)                                |
+| `back`    | Page that Esc and the ✕ button go to (default: the previous page) |
+| `theme`   | `light` or `dark` (default: follow the system)                    |
+
+In the viewer, ←/→ (or space) change slides, **F** toggles full screen and Esc leaves. It also works inside an `<iframe allow="fullscreen">`. During development, `npm run dev` serves it at `/present.html`.
+
 ## Architecture
 
 ```
