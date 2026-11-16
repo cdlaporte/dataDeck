@@ -149,6 +149,10 @@ export class Renderer {
     this.geometry.setAttribute('aRadius', this.radius);
     this.geometry.setAttribute('aColor', this.color);
     this.geometry.setAttribute('aHighlight', this.highlight);
+    // three.js remembers the instance count of the first buffers it drew with
+    // (`_maxInstanceCount`) and only forgets it on dispose. Without this, loading a
+    // bigger dataset after a smaller one would draw just the first rows.
+    this.geometry.dispose();
     this.geometry.instanceCount = n;
   }
 

@@ -1,4 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
+import { join } from 'node:path';
 
 type Hooks = {
   __datadeck: {
@@ -645,5 +646,29 @@ test('notes scale with the window', async ({ page }) => {
   const back = await read();
   expect(back.font).toBe(19);
   expect(back.off[0]).toBeCloseTo(moved.dx, 0);
+  expect(errors).toEqual([]);
+});
+
+test('a bigger dataset opened after a smaller one is drawn completely', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByText('Palmer penguins').click(); // 344 rows
+  await page.locator('.field-name', { hasText: 'species' }).waitFor();
+  await settle(page, 30);
+  const chooser = page.waitForEvent('filechooser');
+  await page.getByRole('button', { name: /open/i }).first().click();
+  await (await chooser).setFiles(join(process.cwd(), 'examples', 'statistical-bias.datadeck.json'));
+  await expect.poll(async () => (await state(page)).table?.rowCount).toBe(1000);
+  // Every instance is drawn: two triangles each (three.js used to keep drawing only 344).
+  await expect
+    .poll(() =>
+      page.evaluate(() => {
+        const e = (window as unknown as Hooks).__datadeck.engine() as unknown as {
+          renderer: { renderer: { info: { render: { triangles: number } } } };
+        };
+        return e.renderer.renderer.info.render.triangles;
+      }),
+    )
+    .toBe(2000);
   expect(errors).toEqual([]);
 });

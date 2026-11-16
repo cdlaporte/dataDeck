@@ -183,6 +183,28 @@ npm run samples      # regenerate public/samples/ (downloads the public datasets
 `PW_CHROMIUM_PATH=/path/to/chrome`. The suite runs with software WebGL, so it works on
 headless machines without a GPU.
 
+## Publishing (GitHub Pages)
+
+DataDeck is a static site, so it can be hosted for free on GitHub Pages. The workflow in
+`.github/workflows/deploy.yml` lints, tests and builds on every push to the default branch
+and publishes the result. The build uses relative URLs, so it works under any path.
+
+One-time setup:
+
+1. Make the repository public (Settings → General → Danger Zone → Change visibility).
+   GitHub Pages does not serve private repositories on the free plan.
+2. Settings → Pages → **Build and deployment → Source: GitHub Actions**.
+3. Push, or run the workflow by hand (Actions → Deploy to GitHub Pages → Run workflow).
+   The first run fails if Pages isn't enabled yet; run it again after step 2.
+
+The app then lives at `https://<your-username>.github.io/<repository>/`, and the example
+deck can be downloaded from `…/examples/statistical-bias.datadeck.json`.
+
+If a deploy is rejected by the `github-pages` environment's branch rule, add your branch under
+Settings → Environments → github-pages → Deployment branches.
+
+To try the production build locally: `npm run build && npx vite preview`.
+
 ## Data sources
 
 Iris (Fisher, 1936), Palmer penguins (Horst, Hill & Gorman, CC0), and the Cars and
