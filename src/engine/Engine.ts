@@ -30,6 +30,7 @@ import { drawLegend } from './drawLegend';
 import { Renderer, type Transform } from './Renderer';
 import { Simulation } from './Simulation';
 import { buildTsneInput } from './tsne';
+import { COLLISION_PAD } from './collide';
 import { pointInPolygon } from './lasso';
 import { noteScale } from './noteScale';
 import { MOTION, TickClock, easeInOutCubic, type MotionParams, type MotionPreset } from './motion';
@@ -297,7 +298,7 @@ export class Engine {
     // Title / caption / annotation / camera edits don't touch the layout.
     if (!prev || !sameLayoutInputs(prev, view)) this.recompute(true);
     // Reference lines are guides only: refresh them without moving the bubbles.
-    else if (prev.reference !== view.reference) this.recompute(false);
+    else if (prev.reference !== view.reference || prev.trend !== view.trend) this.recompute(false);
     else if (highlightSignature(prev.annotations) !== highlightSignature(view.annotations))
       this.applyColors();
     const current = this.cameraState();
@@ -479,7 +480,7 @@ export class Engine {
     const coords = view.layout.mode === 'tsne' ? this.resolveTsne(view.layout, filterMask) : this.leaveTsne();
     const layout = computeLayout(
       view.layout,
-      { table, visible: filterMask, viewport, radii, legend, reference: view.reference },
+      { table, visible: filterMask, viewport, radii, legend, reference: view.reference, trend: view.trend },
       coords,
     );
     this.layout = layout;
@@ -489,7 +490,7 @@ export class Engine {
     const collideR = new Float32Array(n);
     // "Let bubbles overlap": no collisions, and a firm pull so bubbles sit exactly on their values.
     const overlap = !!view.overlap && overlapAllowed(view.layout, table);
-    const pad = overlap || layout.collide < 1 ? 0 : 0.8;
+    const pad = overlap || layout.collide < 1 ? 0 : COLLISION_PAD;
     // Slightly soft collisions settle without jitter while still packing cleanly.
     const collide = overlap ? 0 : layout.collide >= 1 ? 0.85 : layout.collide;
     if (overlap) {
@@ -521,6 +522,7 @@ export class Engine {
     this.overlay.setAxes(
       [layout.xAxis, layout.yAxis].filter((a) => !!a),
       layout.refs ?? [],
+      layout.trend ?? null,
     );
     this.layoutInfo = {
       message: layout.message,

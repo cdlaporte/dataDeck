@@ -11,10 +11,12 @@ import {
   estimateLabelWidth,
   fitClusters,
   fitSwarm,
+  formatR,
   formatStat,
   gridFor,
   groupRows,
   hiddenMessage,
+  linearFit,
   maskedRows,
   plotRect,
   REFERENCE_NAME,
@@ -23,9 +25,10 @@ import {
   type LayoutInput,
   type LayoutResult,
   type RefGuide,
+  type TrendGuide,
 } from './common';
 
-export type { LayoutResult, AxisGuide, GroupInfo, RefGuide, Viewport } from './common';
+export type { LayoutResult, AxisGuide, GroupInfo, RefGuide, TrendGuide, Viewport } from './common';
 
 /** Whether "let bubbles overlap" makes sense: layouts with at least one continuous position. */
 export function overlapAllowed(spec: LayoutSpec, table: DataTable): boolean {
@@ -50,6 +53,16 @@ export function referenceAvailable(spec: LayoutSpec, table: DataTable): boolean 
   if (spec.mode === '1d') return numeric(spec.field);
   if (spec.mode === '2d') return usable(spec.x) && usable(spec.y) && (numeric(spec.x) || numeric(spec.y));
   return false;
+}
+
+/** Whether a least-squares trend line makes sense: a scatter plot on linear axes. */
+export function trendAvailable(spec: LayoutSpec, table: DataTable): boolean {
+  if (spec.mode !== '2d' || spec.logX || spec.logY) return false;
+  const numeric = (f: string) => {
+    const t = table.fieldByName[f]?.type;
+    return !!t && isNumericType(t);
+  };
+  return numeric(spec.x) && numeric(spec.y);
 }
 
 /** Computes per-row target positions and guides for a layout spec. Pure. */
@@ -217,7 +230,10 @@ function layout2D(
       const lo = Math.min(...range);
       const hi = Math.max(...range);
       const at = (v: number) => Math.max(lo, Math.min(hi, scaleValue(scale, v)));
+      const domain = (scale.domain() as (number | Date)[]).map(Number) as [number, number];
       return {
+        /** The axis' data range (after nice rounding). */
+        domain,
         pos: (i: number) => at(col.kind === 'number' ? col.values[i] : NaN),
         /** Position of a data value on this axis (continuous axes only). */
         at,
@@ -233,6 +249,7 @@ function layout2D(
     const centers = grouping.keys.map((k) => scale(k)!);
     return {
       pos: (i: number) => (grouping.nodeGroup[i] >= 0 ? centers[grouping.nodeGroup[i]] : NaN),
+      domain: null,
       at: null,
       values: null,
       lane: grouping.nodeGroup,
@@ -252,6 +269,7 @@ function layout2D(
   res.xAxis = X.guide;
   res.yAxis = Y.guide;
   if (input.reference) res.refs = references2D(input.reference, mask, rect, [X, Y], [xm, ym]);
+  if (input.trend && xCont && yCont && !logX && !logY) res.trend = trendLine(mask, rect, X, Y);
 
   if (xCont && yCont) {
     // Scatter: keep positions accurate, allow overlap.
@@ -346,6 +364,46 @@ function references2D(
     });
   });
   return refs;
+}
+
+/**
+ * Least-squares line across the data's x range, clipped to the plot's y range, in
+ * world coordinates; labelled with Pearson's r. Fitted in data space (linear axes).
+ */
+function trendLine(
+  mask: Uint8Array,
+  rect: { left: number; right: number; top: number },
+  X: AxisPlacement & { domain: [number, number] | null },
+  Y: AxisPlacement & { domain: [number, number] | null },
+): TrendGuide | undefined {
+  if (!X.at || !Y.at || !X.values || !Y.values || !Y.domain) return undefined;
+  const fit = linearFit(X.values, Y.values, maskedRows(mask));
+  if (!fit) return undefined;
+  const yAt = (x: number) => fit.intercept + fit.slope * x;
+  let x1 = fit.xMin;
+  let x2 = fit.xMax;
+  // Clip where the line leaves the y axis' range.
+  const [yLo, yHi] = [Math.min(...Y.domain), Math.max(...Y.domain)];
+  if (fit.slope !== 0) {
+    const xAtLo = (yLo - fit.intercept) / fit.slope;
+    const xAtHi = (yHi - fit.intercept) / fit.slope;
+    const [a, b] = [Math.min(xAtLo, xAtHi), Math.max(xAtLo, xAtHi)];
+    x1 = Math.max(x1, a);
+    x2 = Math.min(x2, b);
+    if (!(x2 > x1)) return undefined;
+  } else if (fit.intercept < yLo || fit.intercept > yHi) return undefined;
+  // Label in the corner the trend leaves empty: top-left when it rises, top-right otherwise.
+  const rising = fit.slope > 0;
+  return {
+    x1: X.at(x1),
+    y1: Y.at(yAt(x1)),
+    x2: X.at(x2),
+    y2: Y.at(yAt(x2)),
+    label: formatR(fit.r),
+    lx: rising ? rect.left + 12 : rect.right - 12,
+    ly: rect.top + 20,
+    anchor: rising ? 'start' : 'end',
+  };
 }
 
 function tsneLayout(

@@ -1,6 +1,6 @@
 import { select, type Selection } from 'd3-selection';
 import type { Annotation } from '../state/types';
-import type { AxisGuide, RefGuide } from '../engine/layouts';
+import type { AxisGuide, RefGuide, TrendGuide } from '../engine/layouts';
 import type { Transform } from '../engine/Renderer';
 import type { ThemeColors } from '../engine/palette';
 
@@ -82,6 +82,7 @@ export class Overlay {
   private current: Selection<SVGGElement, unknown, null, undefined> | null = null;
   private axes: AxisGuide[] = [];
   private refs: RefGuide[] = [];
+  private trend: TrendGuide | null = null;
   private theme!: ThemeColors;
   private lastTransform = '';
   private groupField: string | null = null;
@@ -121,19 +122,21 @@ export class Overlay {
   setTheme(theme: ThemeColors) {
     this.theme = theme;
     this.lassoPath.attr('stroke', theme.accent).attr('fill', theme.accent);
-    this.setAxes(this.axes, this.refs, true);
+    this.setAxes(this.axes, this.refs, this.trend, true);
     this.groupLayer.selectAll('*').remove();
     this.annotationLayer.selectAll('*').remove();
   }
 
-  setAxes(axes: AxisGuide[], refs: RefGuide[] = [], force = false) {
+  setAxes(axes: AxisGuide[], refs: RefGuide[] = [], trend: TrendGuide | null = null, force = false) {
     const same =
       !force &&
       JSON.stringify(axes) === JSON.stringify(this.axes) &&
-      JSON.stringify(refs) === JSON.stringify(this.refs);
+      JSON.stringify(refs) === JSON.stringify(this.refs) &&
+      JSON.stringify(trend) === JSON.stringify(this.trend);
     if (same) return;
     this.axes = axes;
     this.refs = refs;
+    this.trend = trend;
     if (this.current) {
       const old = this.current;
       old.attr('class', 'guide-set leaving').style('opacity', '0');
@@ -143,6 +146,7 @@ export class Overlay {
     this.current = g;
     for (const axis of axes) this.buildAxis(g, axis);
     this.buildRefs(g, refs);
+    this.buildTrend(g, trend);
     requestAnimationFrame(() => g.attr('class', 'guide-set'));
     this.lastTransform = '';
   }
@@ -207,6 +211,46 @@ export class Overlay {
       .text((d) => d.label);
   }
 
+  /** Least-squares trend line: a solid accent line over a soft halo, labelled with r. */
+  private buildTrend(g: Selection<SVGGElement, unknown, null, undefined>, trend: TrendGuide | null) {
+    if (!trend) return;
+    const t = this.theme;
+    const layer = g.append('g').attr('class', 'trend');
+    layer
+      .append('line')
+      .attr('class', 'trend-halo')
+      .attr('stroke', t.surface)
+      .attr('stroke-opacity', 0.75)
+      .attr('stroke-width', 5)
+      .attr('stroke-linecap', 'round');
+    layer
+      .append('line')
+      .attr('class', 'trend-line')
+      .attr('stroke', t.accent)
+      .attr('stroke-width', 2.25)
+      .attr('stroke-linecap', 'round');
+    layer
+      .append('text')
+      .attr('class', 'trend-label')
+      .attr('fill', t.accent)
+      .attr('font-size', 15)
+      .attr('font-weight', 700)
+      .attr('stroke', t.surface)
+      .attr('stroke-width', 4)
+      .attr('stroke-linejoin', 'round')
+      .attr('paint-order', 'stroke')
+      .text(trend.label);
+  }
+
+  private positionTrend(sx: (v: number) => number, sy: (v: number) => number) {
+    const tr = this.trend;
+    if (!this.current || !tr) return;
+    const [x1, y1, x2, y2] = [sx(tr.x1), sy(tr.y1), sx(tr.x2), sy(tr.y2)];
+    const g = this.current.select('g.trend');
+    g.selectAll('line').attr('x1', x1).attr('y1', y1).attr('x2', x2).attr('y2', y2);
+    g.select('text.trend-label').attr('x', sx(tr.lx)).attr('y', sy(tr.ly)).attr('text-anchor', tr.anchor);
+  }
+
   private positionRefs(sx: (v: number) => number, sy: (v: number) => number) {
     if (!this.current) return;
     const refs = this.current.selectAll<SVGGElement, RefGuide>('g.ref');
@@ -247,6 +291,7 @@ export class Overlay {
     const sx = (v: number) => v * t.k + t.x;
     const sy = (v: number) => v * t.k + t.y;
     this.positionRefs(sx, sy);
+    this.positionTrend(sx, sy);
     const groups = this.current.selectAll<SVGGElement, unknown>('g[data-orient]').nodes();
     for (const [i, axis] of this.axes.entries()) {
       const a = select(groups[i]);

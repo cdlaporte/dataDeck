@@ -1,5 +1,6 @@
 // Measurement harness for dense-clump behaviour (used by jitter.test.ts).
 import { MOTION, TICK_MS } from './motion';
+import { COLLISION_PAD } from './collide';
 import { Simulation } from './Simulation';
 
 export interface ClumpMetrics {
@@ -7,6 +8,8 @@ export interface ClumpMetrics {
   jitter: number;
   /** 95th-percentile overlap between touching bubbles, as a fraction of the smaller radius. */
   p95Overlap: number;
+  /** Median visible gap from each interior bubble to its nearest neighbour (px). */
+  medianGap: number;
 }
 
 /** Radius the engine would use for n bubbles in a ~700×600 plot (see encodings.baseRadius). */
@@ -18,7 +21,13 @@ export function appRadius(n: number): number {
  * Builds n bubbles split into `groups` targets (1 = a single cluster), lets
  * them settle for `settleMs`, then measures jitter and overlap.
  */
-export function measureClumps(n: number, groups = 1, settleMs = 6000, sim = new Simulation()): ClumpMetrics {
+export function measureClumps(
+  n: number,
+  groups = 1,
+  settleMs = 6000,
+  sim = new Simulation(),
+  pad = COLLISION_PAD,
+): ClumpMetrics {
   const r = appRadius(n) * (groups > 1 ? 0.8 : 1);
   sim.setMotion(MOTION.balanced);
   sim.setCount(n, 0, 0, r * 2);
@@ -33,7 +42,7 @@ export function measureClumps(n: number, groups = 1, settleMs = 6000, sim = new 
     ty[i] = Math.floor(g / cols) * 220;
   }
   sim.setTargets(tx, ty, groups > 1 ? 0.1 : 0.06, groups > 1 ? 0.1 : 0.06);
-  const radii = new Float32Array(n).fill(r + 0.8);
+  const radii = new Float32Array(n).fill(r + pad);
   sim.setCollision(radii, 0.85);
   (sim as { setDensity?: (n: number) => void }).setDensity?.(n);
   sim.reheat(0.6);
@@ -73,18 +82,41 @@ export function measureClumps(n: number, groups = 1, settleMs = 6000, sim = new 
     overlaps.push(worst);
   }
   overlaps.sort((a, b) => a - b);
-  return { jitter, p95Overlap: overlaps[Math.floor(overlaps.length * 0.95)] };
+
+  // Visible gap to the nearest neighbour, interior bubbles only (edges have open space).
+  const gaps: number[] = [];
+  for (let i = 0; i < n; i++) {
+    if (!interior[i]) continue;
+    let nearest = Infinity;
+    for (let j = 0; j < n; j++) {
+      if (i === j || group[i] !== group[j]) continue;
+      nearest = Math.min(nearest, Math.hypot(nodes[i].x - nodes[j].x, nodes[i].y - nodes[j].y));
+    }
+    gaps.push(nearest - 2 * r);
+  }
+  gaps.sort((a, b) => a - b);
+  return {
+    jitter,
+    p95Overlap: overlaps[Math.floor(overlaps.length * 0.95)],
+    medianGap: gaps[gaps.length >> 1] ?? 0,
+  };
 }
 
 /**
  * Transition from one big cluster to `groups` separate groups and report the
  * share of bubbles still outside 1.3× their group's packed radius after `ms`.
  */
-export function measureStragglers(n: number, groups: number, ms: number, sim = new Simulation()): number {
+export function measureStragglers(
+  n: number,
+  groups: number,
+  ms: number,
+  sim = new Simulation(),
+  pad = COLLISION_PAD,
+): number {
   const r = appRadius(n) * 0.8;
   sim.setMotion(MOTION.balanced);
   sim.setCount(n, 0, 0, r * 2);
-  const radii = new Float32Array(n).fill(r + 0.8);
+  const radii = new Float32Array(n).fill(r + pad);
   sim.setCollision(radii, 0.85);
   (sim as { setDensity?: (n: number) => void }).setDensity?.(n);
   // Settle as one cluster first (like the app's initial view).
@@ -104,7 +136,7 @@ export function measureStragglers(n: number, groups: number, ms: number, sim = n
   sim.reheat(0.6);
   for (let t = 0; t < Math.round(ms / TICK_MS); t++) sim.tick();
 
-  const R = Math.sqrt(((n / groups) * (r + 0.8) ** 2) / 0.82);
+  const R = Math.sqrt(((n / groups) * (r + pad) ** 2) / 0.82);
   let out = 0;
   sim.nodes.forEach((d, i) => {
     if (Math.hypot(d.x - tx[i], d.y - ty[i]) > 1.3 * R) out++;

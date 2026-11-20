@@ -672,3 +672,30 @@ test('a bigger dataset opened after a smaller one is drawn completely', async ({
     .toBe(2000);
   expect(errors).toEqual([]);
 });
+
+test('trend line with r on a scatter plot', async ({ page }) => {
+  const errors: string[] = [];
+  await open(page, errors);
+  await page.getByText('Iris flowers').click();
+  await expect(page.locator('.field-name', { hasText: 'petal_length' })).toBeVisible();
+  await page.evaluate(() => {
+    const s = (window as unknown as Hooks).__datadeck.store;
+    s.setState({
+      view: { ...s.getState().view, layout: { mode: '2d', x: 'petal_length', y: 'petal_width' } },
+    });
+  });
+  const trend = page.getByRole('switch', { name: 'Trend line (r)' });
+  await trend.check();
+  await expect(page.locator('.guide-set:not(.leaving) .trend-line')).toHaveCount(1);
+  await expect(page.locator('.guide-set:not(.leaving) .trend-label')).toHaveText('r = 0.96');
+  expect((await state(page)).view.trend).toBe(true);
+  await page.keyboard.press('ControlOrMeta+z');
+  await expect(page.locator('.guide-set:not(.leaving) .trend-line')).toHaveCount(0);
+  // Not offered once an axis is categorical.
+  await page.evaluate(() => {
+    const s = (window as unknown as Hooks).__datadeck.store;
+    s.setState({ view: { ...s.getState().view, layout: { mode: '2d', x: 'species', y: 'petal_width' } } });
+  });
+  await expect(trend).toHaveCount(0);
+  expect(errors).toEqual([]);
+});

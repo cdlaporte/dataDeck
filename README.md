@@ -34,9 +34,17 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
 | Movies          | 3,201 | Grosses, budgets, ratings, genres, release dates |
 | SaaS customers  | 5,000 | Synthetic plans, revenue, usage, churn           |
 
-### Example deck: sampling and response bias
+### Example decks
 
-`examples/statistical-bias.datadeck.json` is a ready-made 22-slide presentation for an intro statistics class. Load it with **Open**.
+Two ready-made presentations for an intro statistics class live in `examples/`. Load one with **Open**.
+
+**Describing scatter plots** (`examples/scatter-plots.datadeck.json`, 25 slides):
+
+- Explanatory and response variables; direction, form and strength; in-line vs out-of-line outliers (with the outlier removed on the next slide); clusters.
+- Three "describe this scatter plot" quizzes, each followed by an answer slide where the bubbles stay put and the trend line appears.
+- Built on a fake class of 180 students; every correlation is constructed to hit its target. Regenerate it with `node scripts/genScatterDeck.mjs`.
+
+**Sampling and response bias** (`examples/statistical-bias.datadeck.json`, 22 slides):
 
 - It covers convenience, voluntary-response and under-coverage sampling, plus non-response, measurement, social-desirability, recall, observer, Hawthorne and interviewer bias.
 - It is built on a synthetic town of 1,000 residents whose true values are known, so each bias is shown pulling an estimate away from the truth.
@@ -72,6 +80,7 @@ Pick one of the bundled samples, or drop in your own CSV/TSV:
      - scatter: one line for each axis
      - strip plot (a categorical axis): one line **per category**, each labelled with its own value
      - lines respect filters and log axes, and are saved with the slide
+   - **Trend line (r)** on a scatter plot draws the least-squares line through the visible rows and labels it with the correlation r. It follows filters, so excluding a point shows its effect on the line.
    - **Drag a field** from the Data panel onto the stage. Drop it on the **X axis** or **Y axis** zone (switching to 2D if needed), on **Color**, or in the middle to **show it on its own**.
 3. **Annotate.**
    - Press **A**, or use the note tool, then click a bubble, a group label or empty space.
@@ -158,7 +167,7 @@ Key ideas:
   120 Hz display doesn't double the speed. Targets glide from the old layout to the new one,
   a speed limit prevents fling, and alpha decays to a small resting value so groups come
   to rest instead of churning.
-- **Calm dense clumps.** Collisions move positions directly (position-based dynamics),
+- **Calm dense clumps.** Each bubble collides at exactly its drawn radius, so packed bubbles touch with only a hairline seam. Collisions move positions directly (position-based dynamics),
   so they add no bounce energy. Bubbles inside a group's packed radius are not pulled
   inward, so the interior isn't squeezed. Collision passes scale with the number of
   visible bubbles. See `src/engine/jitter.test.ts` for the measured budget.
@@ -198,7 +207,7 @@ One-time setup:
    The first run fails if Pages isn't enabled yet; run it again after step 2.
 
 The app then lives at `https://<your-username>.github.io/<repository>/`, and the example
-deck can be downloaded from `…/examples/statistical-bias.datadeck.json`.
+decks can be downloaded from `…/examples/scatter-plots.datadeck.json` and `…/examples/statistical-bias.datadeck.json`.
 
 If a deploy is rejected by the `github-pages` environment's branch rule, add your branch under
 Settings → Environments → github-pages → Deployment branches.

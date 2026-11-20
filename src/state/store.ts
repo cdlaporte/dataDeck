@@ -2,7 +2,7 @@ import { create } from 'zustand';
 import { makeId } from '../data/parse';
 import { buildTable, isNumericType } from '../data/profile';
 import type { LayoutInfo, Tool, TsneStatus } from '../engine/Engine';
-import { referenceAvailable } from '../engine/layouts';
+import { referenceAvailable, trendAvailable } from '../engine/layouts';
 import type { MotionPreset } from '../engine/motion';
 import { withoutHistory } from './history';
 import {
@@ -164,6 +164,7 @@ export function sanitizeView(view: ViewState, table: DataTable): ViewState {
   }
   if (!ok(v.encoding.color)) v.encoding.color = null;
   if (v.reference && !referenceAvailable(v.layout, table)) delete v.reference;
+  if (v.trend && !trendAvailable(v.layout, table)) delete v.trend;
   if (v.encoding.size && table.fieldByName[v.encoding.size]?.type !== 'quantitative') v.encoding.size = null;
   v.filters = v.filters.filter((f) => {
     if (f.kind === 'rows') return f.rows.every((r) => r < table.rowCount);
@@ -302,6 +303,15 @@ export function setReference(reference: ReferenceKind | null) {
     const next = { ...v };
     if (reference) next.reference = reference;
     else delete next.reference;
+    return next;
+  });
+}
+
+export function setTrend(on: boolean) {
+  updateView((v) => {
+    const next = { ...v };
+    if (on) next.trend = true;
+    else delete next.trend;
     return next;
   });
 }

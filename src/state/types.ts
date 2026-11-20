@@ -141,6 +141,8 @@ export interface ViewState {
   overlap?: boolean;
   /** Mean / median reference lines on continuous axes (per category in strip plots). */
   reference?: ReferenceKind;
+  /** Least-squares trend line labelled with Pearson's r (scatter plots on linear axes). */
+  trend?: boolean;
 }
 
 export type ReferenceKind = 'mean' | 'median';

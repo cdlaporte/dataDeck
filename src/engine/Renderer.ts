@@ -67,7 +67,9 @@ const fragmentShader = /* glsl */ `
     float outerR = vRadius + hiW;
     float outer = 1.0 - smoothstep(outerR - aa, outerR + aa, d);
     if (outer <= 0.0) discard;
-    float ringW = clamp(vRadius * 0.18, 0.0, 1.0);
+    // A hairline seam in the background colour: separates overlapping bubbles in
+    // scatter plots without opening visible gaps between packed ones.
+    float ringW = clamp(vRadius * 0.12, 0.0, 0.5);
     float fill = 1.0 - smoothstep(vRadius - ringW - aa, vRadius - ringW + aa, d);
     float inside = 1.0 - smoothstep(vRadius - aa, vRadius + aa, d);
     vec3 col = mix(uRing, vColor.rgb, fill);

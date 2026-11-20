@@ -1,8 +1,8 @@
 import { describe, expect, it } from 'vitest';
 import { parseDelimited } from '../../data/parse';
 import { buildTable } from '../../data/profile';
-import { computeLayout, referenceAvailable } from './index';
-import { fitClusters, gridFor, groupRows, logTicks, plotRect } from './common';
+import { computeLayout, referenceAvailable, trendAvailable } from './index';
+import { fitClusters, formatR, gridFor, groupRows, linearFit, logTicks, plotRect } from './common';
 
 const csv = [
   'name,group,value,when',
@@ -257,5 +257,87 @@ describe('reference lines', () => {
     expect(referenceAvailable({ mode: 'cluster' }, refTable)).toBe(false);
     const grid = computeLayout({ mode: '2d', x: 'team', y: 'team' }, { ...base, reference: 'mean' }, null);
     expect(grid.refs ?? []).toHaveLength(0);
+  });
+});
+
+describe('trend line', () => {
+  it('fits a perfect line exactly (r = 1) and a known sample', () => {
+    const xs = [1, 2, 3, 4, 5];
+    const perfect = linearFit(xs, [3, 5, 7, 9, 11], [0, 1, 2, 3, 4])!;
+    expect(perfect.slope).toBeCloseTo(2);
+    expect(perfect.intercept).toBeCloseTo(1);
+    expect(perfect.r).toBeCloseTo(1);
+    // Hand-computed: Sxx = 10, Syy = 6, Sxy = 6 → slope 0.6, r = 6 / √60 ≈ 0.7746.
+    const sample = linearFit(xs, [2, 4, 5, 4, 5], [0, 1, 2, 3, 4])!;
+    expect(sample.slope).toBeCloseTo(0.6);
+    expect(sample.intercept).toBeCloseTo(2.2);
+    expect(sample.r).toBeCloseTo(0.7746, 3);
+    expect(linearFit([1, 1, 1], [1, 2, 3], [0, 1, 2])).toBeNull(); // no spread in x
+    expect(linearFit(xs, [1, 2], [0, 1])).toBeNull(); // too few points
+    expect(formatR(-0.254)).toBe('r = −0.25');
+    expect(formatR(-0.001)).toBe('r = 0.00');
+  });
+
+  const lineData = parseDelimited(
+    [
+      'x,y,g',
+      ...Array.from({ length: 12 }, (_, i) => `${i + 1.5},${2 * (i + 1.5) + 3},${'abc'[i % 3]}`),
+    ].join('\n'),
+    'line',
+  );
+  const lineTable = buildTable(lineData);
+  const lineInput = {
+    table: lineTable,
+    visible: new Uint8Array(12).fill(1),
+    viewport,
+    radii: new Float32Array(12).fill(5),
+  };
+
+  it('runs through the points of a perfect line, labelled with r', () => {
+    const res = computeLayout({ mode: '2d', x: 'x', y: 'y' }, { ...lineInput, trend: true }, null);
+    const t = res.trend!;
+    expect(t.label).toBe('r = 1.00');
+    // Endpoints sit on the first and last bubbles' targets.
+    expect(t.x1).toBeCloseTo(res.tx[0]);
+    expect(t.y1).toBeCloseTo(res.ty[0]);
+    expect(t.x2).toBeCloseTo(res.tx[11]);
+    expect(t.y2).toBeCloseTo(res.ty[11]);
+    expect(computeLayout({ mode: '2d', x: 'x', y: 'y' }, lineInput, null).trend).toBeUndefined();
+  });
+
+  it('stays inside the plot when the fit would leave it', () => {
+    // One outlier drags the fitted line below the data's y range at the left.
+    const xs = Array.from({ length: 20 }, (_, i) => i);
+    const ys = xs.map((x) => (x === 19 ? -400 : 50 + (x % 3)));
+    const data = parseDelimited(
+      ['x,y', ...xs.map((x, i) => `${x + 0.5},${ys[i] + 0.25}`)].join('\n'),
+      'clip',
+    );
+    const table = buildTable(data);
+    const res = computeLayout(
+      { mode: '2d', x: 'x', y: 'y' },
+      {
+        table,
+        visible: new Uint8Array(20).fill(1),
+        viewport,
+        radii: new Float32Array(20).fill(5),
+        trend: true,
+      },
+      null,
+    );
+    const rect = plotRect(viewport, { xAxis: true, yAxis: true, yLabelWidth: 40 });
+    for (const y of [res.trend!.y1, res.trend!.y2]) {
+      expect(y).toBeGreaterThanOrEqual(rect.top - 1);
+      expect(y).toBeLessThanOrEqual(rect.bottom + 1);
+    }
+  });
+
+  it('is offered only for scatter plots on linear axes', () => {
+    expect(trendAvailable({ mode: '2d', x: 'x', y: 'y' }, lineTable)).toBe(true);
+    expect(trendAvailable({ mode: '2d', x: 'x', y: 'y', logX: true }, lineTable)).toBe(false);
+    expect(trendAvailable({ mode: '2d', x: 'g', y: 'y' }, lineTable)).toBe(false);
+    expect(trendAvailable({ mode: '1d', field: 'x' }, lineTable)).toBe(false);
+    const strip = computeLayout({ mode: '2d', x: 'g', y: 'y' }, { ...lineInput, trend: true }, null);
+    expect(strip.trend).toBeUndefined();
   });
 });

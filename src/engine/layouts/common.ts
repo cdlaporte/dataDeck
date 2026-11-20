@@ -58,6 +58,20 @@ export interface RefGuide {
   lane?: boolean;
 }
 
+/** Least-squares trend line (world coordinates) and its correlation label. */
+export interface TrendGuide {
+  x1: number;
+  y1: number;
+  x2: number;
+  y2: number;
+  /** e.g. "r = 0.82" */
+  label: string;
+  /** Label position (world): the plot corner the trend leaves empty. */
+  lx: number;
+  ly: number;
+  anchor: 'start' | 'end';
+}
+
 export interface GroupInfo {
   field: string;
   keys: string[];
@@ -80,6 +94,8 @@ export interface LayoutResult {
   yAxis?: AxisGuide;
   /** Mean / median reference lines. */
   refs?: RefGuide[];
+  /** Least-squares trend line (scatter plots). */
+  trend?: TrendGuide;
   /** Groups whose labels float under their live clusters. */
   groups?: GroupInfo;
   /** Short status line shown on the stage (e.g. hidden-row count). */
@@ -97,6 +113,8 @@ export interface LayoutInput {
   radii: Float32Array;
   /** Draw mean / median reference lines where the layout supports them. */
   reference?: ReferenceKind;
+  /** Draw a least-squares trend line with Pearson's r (scatter plots). */
+  trend?: boolean;
 }
 
 export const MAX_GROUPS = 24;
@@ -442,3 +460,68 @@ export function formatStat(meta: FieldMeta, v: number): string {
 }
 
 export const REFERENCE_NAME: Record<ReferenceKind, string> = { mean: 'Mean', median: 'Median' };
+
+// ---------------------------------------------------------------------------
+// Trend line
+
+export interface LinearFit {
+  slope: number;
+  intercept: number;
+  /** Pearson correlation coefficient. */
+  r: number;
+  n: number;
+  xMin: number;
+  xMax: number;
+}
+
+/**
+ * Least-squares line y = intercept + slope·x and Pearson's r over `rows` (rows
+ * with a non-finite x or y are skipped). Null with fewer than 3 points or no
+ * spread in x.
+ */
+export function linearFit(
+  xs: ArrayLike<number>,
+  ys: ArrayLike<number>,
+  rows: Iterable<number>,
+): LinearFit | null {
+  let n = 0;
+  let sx = 0;
+  let sy = 0;
+  let xMin = Infinity;
+  let xMax = -Infinity;
+  const kept: number[] = [];
+  for (const i of rows) {
+    const x = xs[i];
+    const y = ys[i];
+    if (!Number.isFinite(x) || !Number.isFinite(y)) continue;
+    kept.push(i);
+    n++;
+    sx += x;
+    sy += y;
+    if (x < xMin) xMin = x;
+    if (x > xMax) xMax = x;
+  }
+  if (n < 3) return null;
+  const mx = sx / n;
+  const my = sy / n;
+  let sxx = 0;
+  let syy = 0;
+  let sxy = 0;
+  for (const i of kept) {
+    const dx = xs[i] - mx;
+    const dy = ys[i] - my;
+    sxx += dx * dx;
+    syy += dy * dy;
+    sxy += dx * dy;
+  }
+  if (!(sxx > 0)) return null;
+  const slope = sxy / sxx;
+  const r = syy > 0 ? sxy / Math.sqrt(sxx * syy) : 0;
+  return { slope, intercept: my - slope * mx, r, n, xMin, xMax };
+}
+
+/** "r = 0.82" / "r = −0.25" (typographic minus). */
+export function formatR(r: number): string {
+  const v = (Math.abs(r) < 0.005 ? 0 : r).toFixed(2);
+  return `r = ${v.startsWith('-') ? `\u2212${v.slice(1)}` : v}`;
+}

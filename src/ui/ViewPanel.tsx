@@ -1,7 +1,7 @@
 import { useState } from 'react';
 import { getEngine } from '../engine/instance';
 import { MOTION_LABEL, type MotionPreset } from '../engine/motion';
-import { overlapAllowed, referenceAvailable } from '../engine/layouts';
+import { overlapAllowed, referenceAvailable, trendAvailable } from '../engine/layouts';
 import { isNumericType } from '../data/profile';
 import {
   dimensionFields,
@@ -11,6 +11,7 @@ import {
   setOverlap,
   setLayoutMode,
   setReference,
+  setTrend,
   useStore,
 } from '../state/store';
 import type { DataTable, LayoutMode, LayoutSpec, ReferenceKind, TsneParams } from '../state/types';
@@ -115,6 +116,17 @@ export function ViewPanel() {
                   onChange={(e) => setOverlap(e.target.checked)}
                 />
                 <span>Let bubbles overlap</span>
+              </label>
+            )}
+            {trendAvailable(layout, table) && (
+              <label className="switch-row" title="Least-squares line and the correlation r">
+                <input
+                  type="checkbox"
+                  role="switch"
+                  checked={!!view.trend}
+                  onChange={(e) => setTrend(e.target.checked)}
+                />
+                <span>Trend line (r)</span>
               </label>
             )}
             {referenceAvailable(layout, table) && (

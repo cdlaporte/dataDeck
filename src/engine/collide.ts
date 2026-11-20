@@ -1,5 +1,8 @@
 import type { SimNode } from './Simulation';
 
+/** Extra space (px) added to each bubble's collision radius beyond its drawn radius: none, so packed bubbles touch. */
+export const COLLISION_PAD = 0;
+
 /**
  * Collision on a uniform grid (cell = largest diameter), replacing
  * d3.forceCollide's quadtree for dense layouts of thousands of bubbles.

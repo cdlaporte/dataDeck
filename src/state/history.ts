@@ -47,7 +47,8 @@ function cameraOnly(a: AppState['view'], b: AppState['view']) {
     a.title === b.title &&
     a.caption === b.caption &&
     a.overlap === b.overlap &&
-    a.reference === b.reference
+    a.reference === b.reference &&
+    a.trend === b.trend
   );
 }
 
